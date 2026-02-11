@@ -101,60 +101,62 @@
         <h2>Settings</h2>
       </div>
 
-      <div class="settings-section">
-        <h3>Data</h3>
-        <button id="export-btn" class="settings-item">
-          <span class="settings-item-icon">📤</span>
-          <div class="settings-item-content">
-            <span class="settings-item-title">Export passkeys</span>
-            <span class="settings-item-desc">Bitwarden compatible format (includes private keys)</span>
-          </div>
-          <span class="settings-item-arrow">›</span>
-        </button>
-        <button id="import-btn" class="settings-item">
-          <span class="settings-item-icon">📥</span>
-          <div class="settings-item-content">
-            <span class="settings-item-title">Import passkeys</span>
-            <span class="settings-item-desc">Import from Bitwarden JSON export</span>
-          </div>
-          <span class="settings-item-arrow">›</span>
-        </button>
-      </div>
-
-      <div class="settings-section">
-        <h3>Security</h3>
-        <button id="change-password-btn" class="settings-item">
-          <span class="settings-item-icon">🔑</span>
-          <div class="settings-item-content">
-            <span class="settings-item-title">Change master password</span>
-            <span class="settings-item-desc">Update your vault encryption password</span>
-          </div>
-          <span class="settings-item-arrow">›</span>
-        </button>
-        <button id="reset-btn" class="settings-item settings-item-danger">
-          <span class="settings-item-icon">🗑️</span>
-          <div class="settings-item-content">
-            <span class="settings-item-title">Reset extension</span>
-            <span class="settings-item-desc">Delete all passkeys and start fresh</span>
-          </div>
-          <span class="settings-item-arrow">›</span>
-        </button>
-      </div>
-
-      <div class="settings-section">
-        <h3>About</h3>
-        <div class="settings-info">
-          <p><strong>Passkey Manager</strong> v1.0.0</p>
-          <p>Passkeys are encrypted with AES-256-GCM using Argon2id key derivation.</p>
+      <div class="settings-content">
+        <div class="settings-section">
+          <h3>Data</h3>
+          <button id="export-btn" class="settings-item">
+            <span class="settings-item-icon">📤</span>
+            <div class="settings-item-content">
+              <span class="settings-item-title">Export passkeys</span>
+              <span class="settings-item-desc">Bitwarden compatible format (includes private keys)</span>
+            </div>
+            <span class="settings-item-arrow">›</span>
+          </button>
+          <button id="import-btn" class="settings-item">
+            <span class="settings-item-icon">📥</span>
+            <div class="settings-item-content">
+              <span class="settings-item-title">Import passkeys</span>
+              <span class="settings-item-desc">Import from Bitwarden JSON export</span>
+            </div>
+            <span class="settings-item-arrow">›</span>
+          </button>
         </div>
-        <a href="https://webauthn.io" target="_blank" class="settings-item">
-          <span class="settings-item-icon">🧪</span>
-          <div class="settings-item-content">
-            <span class="settings-item-title">Test passkeys</span>
-            <span class="settings-item-desc">Try WebAuthn on webauthn.io</span>
+
+        <div class="settings-section">
+          <h3>Security</h3>
+          <button id="change-password-btn" class="settings-item">
+            <span class="settings-item-icon">🔑</span>
+            <div class="settings-item-content">
+              <span class="settings-item-title">Change master password</span>
+              <span class="settings-item-desc">Update your vault encryption password</span>
+            </div>
+            <span class="settings-item-arrow">›</span>
+          </button>
+          <button id="reset-btn" class="settings-item settings-item-danger">
+            <span class="settings-item-icon">🗑️</span>
+            <div class="settings-item-content">
+              <span class="settings-item-title">Reset extension</span>
+              <span class="settings-item-desc">Delete all passkeys and start fresh</span>
+            </div>
+            <span class="settings-item-arrow">›</span>
+          </button>
+        </div>
+
+        <div class="settings-section">
+          <h3>About</h3>
+          <div class="settings-info">
+            <p><strong>Passkey Manager</strong> v1.0.0</p>
+            <p>Passkeys are encrypted with AES-256-GCM using Argon2id key derivation.</p>
           </div>
-          <span class="settings-item-arrow">›</span>
-        </a>
+          <a href="https://webauthn.io" target="_blank" class="settings-item">
+            <span class="settings-item-icon">🧪</span>
+            <div class="settings-item-content">
+              <span class="settings-item-title">Test passkeys</span>
+              <span class="settings-item-desc">Try WebAuthn on webauthn.io</span>
+            </div>
+            <span class="settings-item-arrow">›</span>
+          </a>
+        </div>
       </div>
     </div>
 

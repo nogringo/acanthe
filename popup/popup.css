@@ -58,17 +58,19 @@ body {
   overflow-y: auto;
 }
 
-#main-screen {
+#main-screen,
+#settings-screen {
   overflow-y: hidden;
   padding-bottom: 0;
 }
 
-#main-screen .main-content {
+#main-screen .main-content,
+.settings-content {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   margin: 0 -16px;
-  padding: 0 16px;
+  padding: 0 16px 16px;
 }
 
 @keyframes fadeIn {
@@ -481,12 +483,14 @@ body {
 
 /* Hide scrollbar but keep scroll functionality */
 .screen::-webkit-scrollbar,
-.main-content::-webkit-scrollbar {
+.main-content::-webkit-scrollbar,
+.settings-content::-webkit-scrollbar {
   display: none;
 }
 
 .screen,
-.main-content {
+.main-content,
+.settings-content {
   scrollbar-width: none;
 }
 

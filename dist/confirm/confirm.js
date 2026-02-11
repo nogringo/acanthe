@@ -36,6 +36,8 @@ const confirmBtn = document.getElementById('confirm-btn');
 const siteName = rpName || (origin ? new URL(origin).hostname : '-');
 siteEl.textContent = siteName;
 
+const cancelBtn = document.getElementById('cancel-btn');
+
 if (action === 'create') {
   // Registration flow
   iconEl.textContent = '🔑';
@@ -43,6 +45,7 @@ if (action === 'create') {
   subtitleEl.textContent = 'A new passkey will be created';
   actionDescEl.innerHTML = `<strong>${siteName}</strong> wants to create a passkey for your account. This passkey will be stored securely in this extension.`;
   confirmBtn.textContent = 'Create Passkey';
+  cancelBtn.textContent = "Don't create";
 
   if (userName) {
     userInfoEl.style.display = 'block';
@@ -56,6 +59,7 @@ if (action === 'create') {
   subtitleEl.textContent = 'Use your passkey to authenticate';
   actionDescEl.innerHTML = `<strong>${siteName}</strong> wants to verify your identity using a passkey.`;
   confirmBtn.textContent = 'Sign In';
+  cancelBtn.textContent = "Don't sign in";
 
   // Show account selection if multiple accounts
   if (accounts.length > 0) {

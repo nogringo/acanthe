@@ -18,6 +18,8 @@ const settingsBtn = document.getElementById('settings-btn');
 const backBtn = document.getElementById('back-btn');
 const backFromPasswordBtn = document.getElementById('back-from-password-btn');
 const exportBtn = document.getElementById('export-btn');
+const importBtn = document.getElementById('import-btn');
+const importFile = document.getElementById('import-file');
 const changePasswordBtn = document.getElementById('change-password-btn');
 const resetBtn = document.getElementById('reset-btn');
 
@@ -125,6 +127,8 @@ function setupEventListeners() {
 
   // Settings actions
   exportBtn.addEventListener('click', handleExport);
+  importBtn.addEventListener('click', () => importFile.click());
+  importFile.addEventListener('change', handleImport);
   changePasswordBtn.addEventListener('click', () => showScreen('change-password'));
   resetBtn.addEventListener('click', handleReset);
 }
@@ -456,24 +460,45 @@ async function handleExport() {
     return;
   }
 
-  // Export metadata only (not private keys for security)
-  const exportData = allPasskeys.map(p => ({
-    site: p.rpId,
-    siteName: p.rpName,
-    user: p.userName,
-    displayName: p.userDisplayName,
-    createdAt: p.createdAt
-  }));
+  const result = await sendMessage('exportPasskeysBitwarden');
 
-  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+  if (!result.success) {
+    alert('Export failed: ' + (result.error || 'Unknown error'));
+    return;
+  }
+
+  const blob = new Blob([JSON.stringify(result.data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
 
   const a = document.createElement('a');
   a.href = url;
-  a.download = `passkeys-export-${new Date().toISOString().split('T')[0]}.json`;
+  a.download = `bitwarden_export_${new Date().toISOString().replace(/[:.]/g, '').slice(0, 15)}.json`;
   a.click();
 
   URL.revokeObjectURL(url);
+}
+
+// Handle import
+async function handleImport(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  try {
+    const text = await file.text();
+    const result = await sendMessage('importPasskeysBitwarden', { jsonData: text });
+
+    if (result.success) {
+      alert(`Import complete!\n\nImported: ${result.imported} passkey(s)\nSkipped (duplicates): ${result.skipped}`);
+      loadPasskeys();
+    } else {
+      alert('Import failed: ' + (result.error || 'Unknown error'));
+    }
+  } catch (error) {
+    alert('Failed to read file: ' + error.message);
+  }
+
+  // Reset file input
+  e.target.value = '';
 }
 
 // Send message to background script

@@ -106,10 +106,19 @@
           <span class="settings-item-icon">📤</span>
           <div class="settings-item-content">
             <span class="settings-item-title">Export passkeys</span>
-            <span class="settings-item-desc">Download a JSON file with your passkey metadata</span>
+            <span class="settings-item-desc">Bitwarden compatible format (includes private keys)</span>
           </div>
           <span class="settings-item-arrow">›</span>
         </button>
+        <button id="import-btn" class="settings-item">
+          <span class="settings-item-icon">📥</span>
+          <div class="settings-item-content">
+            <span class="settings-item-title">Import passkeys</span>
+            <span class="settings-item-desc">Import from Bitwarden JSON export</span>
+          </div>
+          <span class="settings-item-arrow">›</span>
+        </button>
+        <input type="file" id="import-file" accept=".json" style="display: none;">
       </div>
 
       <div class="settings-section">

@@ -9,7 +9,9 @@ import {
   hashPassword,
   publicKeyToCose,
   arrayBufferToBase64,
-  base64ToArrayBuffer
+  base64ToArrayBuffer,
+  jwkToPkcs8,
+  pkcs8ToJwk
 } from './lib/crypto.js';
 
 // Session state
@@ -79,6 +81,12 @@ async function handleMessage(message, sender) {
 
     case 'unlockResponse':
       return handleUnlockResponse(requestId, message.unlocked);
+
+    case 'exportPasskeysBitwarden':
+      return await exportPasskeysBitwarden();
+
+    case 'importPasskeysBitwarden':
+      return await importPasskeysBitwarden(data.jsonData);
 
     default:
       return { success: false, error: 'Unknown action' };
@@ -751,6 +759,192 @@ async function resetExtension() {
     sessionKey = null;
     isUnlocked = false;
     return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+// Convert base64 to UUID format (for Bitwarden export)
+function base64ToUuid(base64) {
+  try {
+    // Decode base64 to bytes
+    const bytes = new Uint8Array(base64ToArrayBuffer(base64));
+
+    // Only convert if it's exactly 16 bytes (UUID size)
+    if (bytes.length !== 16) {
+      return base64; // Return as-is if not 16 bytes
+    }
+
+    // Convert to hex
+    const hex = Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+
+    // Format as UUID: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+  } catch (e) {
+    return base64; // Return as-is on error
+  }
+}
+
+// Export passkeys in Bitwarden format
+async function exportPasskeysBitwarden() {
+  if (!isUnlocked) {
+    return { success: false, error: 'Extension is locked' };
+  }
+
+  try {
+    const result = await chrome.storage.local.get(STORAGE_KEYS.PASSKEYS);
+    const encryptedData = result[STORAGE_KEYS.PASSKEYS];
+
+    if (!encryptedData || !encryptedData.data) {
+      return { success: true, data: { encrypted: false, folders: [], items: [] } };
+    }
+
+    const passkeys = await decrypt(encryptedData, sessionKey);
+
+    // Convert to Bitwarden format
+    const items = [];
+    for (const pk of passkeys) {
+      const keyValue = await jwkToPkcs8(pk.privateKey);
+      // Convert credentialId to UUID format and keyValue to base64url
+      const credentialId = base64ToUuid(pk.credentialId);
+      const keyValueUrl = toBase64Url(keyValue);
+
+      items.push({
+        passwordHistory: [],
+        revisionDate: new Date(pk.createdAt).toISOString(),
+        creationDate: new Date(pk.createdAt).toISOString(),
+        id: crypto.randomUUID(),
+        type: 1,
+        reprompt: 0,
+        name: pk.rpName || pk.rpId,
+        notes: null,
+        favorite: false,
+        fields: [],
+        login: {
+          uris: [{ uri: `https://${pk.rpId}/` }],
+          fido2Credentials: [{
+            credentialId: credentialId,
+            keyType: 'public-key',
+            keyAlgorithm: 'ECDSA',
+            keyCurve: 'P-256',
+            keyValue: keyValueUrl,
+            rpId: pk.rpId,
+            userHandle: pk.userId || '',
+            userName: pk.userName || '',
+            counter: String(pk.signCount || 0),
+            rpName: pk.rpName || pk.rpId,
+            userDisplayName: pk.userDisplayName || pk.userName || '',
+            discoverable: 'true',
+            creationDate: new Date(pk.createdAt).toISOString()
+          }],
+          username: pk.userName || '',
+          password: null,
+          totp: null
+        },
+        collectionIds: null
+      });
+    }
+
+    return {
+      success: true,
+      data: {
+        encrypted: false,
+        folders: [],
+        items: items
+      }
+    };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+// Convert UUID string to base64 (for Bitwarden credentialId)
+function uuidToBase64(uuid) {
+  // Check if it's a UUID format (with or without dashes)
+  const uuidRegex = /^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(uuid)) {
+    // Not a UUID, return as-is (might already be base64)
+    return uuid;
+  }
+
+  // Remove dashes and convert hex to bytes
+  const hex = uuid.replace(/-/g, '');
+  const bytes = new Uint8Array(16);
+  for (let i = 0; i < 16; i++) {
+    bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+  }
+
+  return arrayBufferToBase64(bytes);
+}
+
+// Import passkeys from Bitwarden format
+async function importPasskeysBitwarden(jsonData) {
+  if (!isUnlocked) {
+    return { success: false, error: 'Extension is locked' };
+  }
+
+  try {
+    const data = typeof jsonData === 'string' ? JSON.parse(jsonData) : jsonData;
+
+    if (!data.items || !Array.isArray(data.items)) {
+      return { success: false, error: 'Invalid Bitwarden export format' };
+    }
+
+    // Get existing passkeys
+    const result = await chrome.storage.local.get(STORAGE_KEYS.PASSKEYS);
+    const encryptedData = result[STORAGE_KEYS.PASSKEYS];
+
+    let passkeys = [];
+    if (encryptedData && encryptedData.data) {
+      passkeys = await decrypt(encryptedData, sessionKey);
+    }
+
+    let importedCount = 0;
+    let skippedCount = 0;
+
+    for (const item of data.items) {
+      if (!item.login?.fido2Credentials) continue;
+
+      for (const cred of item.login.fido2Credentials) {
+        // Convert UUID credentialId to base64 if needed
+        const credentialId = uuidToBase64(cred.credentialId);
+
+        // Check if already exists
+        const exists = passkeys.some(pk => pk.credentialId === credentialId);
+        if (exists) {
+          skippedCount++;
+          continue;
+        }
+
+        // Convert PKCS#8 to JWK
+        const { privateKey, publicKey } = await pkcs8ToJwk(cred.keyValue);
+
+        passkeys.push({
+          credentialId: credentialId,
+          privateKey: privateKey,
+          publicKey: publicKey,
+          rpId: cred.rpId,
+          rpName: cred.rpName || item.name,
+          userId: cred.userHandle || '',
+          userName: cred.userName || '',
+          userDisplayName: cred.userDisplayName || cred.userName || '',
+          createdAt: cred.creationDate ? new Date(cred.creationDate).getTime() : Date.now(),
+          signCount: parseInt(cred.counter, 10) || 0
+        });
+
+        importedCount++;
+      }
+    }
+
+    // Save updated passkeys
+    const newEncrypted = await encrypt(passkeys, sessionKey);
+    await chrome.storage.local.set({ [STORAGE_KEYS.PASSKEYS]: newEncrypted });
+
+    return {
+      success: true,
+      imported: importedCount,
+      skipped: skippedCount
+    };
   } catch (error) {
     return { success: false, error: error.message };
   }

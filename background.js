@@ -606,11 +606,8 @@ async function storePasskey(passkey) {
 
   let passkeys = [];
   if (encryptedData && encryptedData.data) {
-    try {
-      passkeys = await decrypt(encryptedData, sessionKey);
-    } catch (e) {
-      passkeys = [];
-    }
+    // Let decryption errors propagate - don't silently lose existing passkeys
+    passkeys = await decrypt(encryptedData, sessionKey);
   }
 
   passkeys.push(passkey);

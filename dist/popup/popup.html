@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Passkey Manager</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🔐 Passkey Manager</h1>
+    </header>
+
+    <!-- Setup Screen -->
+    <div id="setup-screen" class="screen hidden">
+      <p class="description">Create a master password to secure your passkeys.</p>
+      <form id="setup-form">
+        <div class="form-group">
+          <label for="setup-password">Master Password</label>
+          <input type="password" id="setup-password" placeholder="At least 8 characters" required minlength="8">
+        </div>
+        <div class="form-group">
+          <label for="setup-confirm">Confirm Password</label>
+          <input type="password" id="setup-confirm" placeholder="Confirm password" required minlength="8">
+        </div>
+        <button type="submit" class="btn btn-primary">Create Password</button>
+      </form>
+      <div id="setup-error" class="error hidden"></div>
+    </div>
+
+    <!-- Unlock Screen -->
+    <div id="unlock-screen" class="screen hidden">
+      <p class="description">Enter your master password to unlock.</p>
+      <form id="unlock-form">
+        <div class="form-group">
+          <label for="unlock-password">Master Password</label>
+          <input type="password" id="unlock-password" placeholder="Enter password" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Unlock</button>
+      </form>
+      <div id="unlock-error" class="error hidden"></div>
+    </div>
+
+    <!-- Main Screen -->
+    <div id="main-screen" class="screen hidden">
+      <div class="toolbar">
+        <span class="status">🔓 Unlocked</span>
+        <button id="lock-btn" class="btn btn-small">Lock</button>
+      </div>
+
+      <div class="section">
+        <h2>Stored Passkeys</h2>
+        <div id="passkeys-list" class="passkeys-list">
+          <p class="empty-state">No passkeys stored yet.</p>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Instructions</h2>
+        <ul class="instructions">
+          <li>Visit a WebAuthn-enabled site</li>
+          <li>Register or login with a passkey</li>
+          <li>Your passkeys are stored securely</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

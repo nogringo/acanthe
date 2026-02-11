@@ -194,22 +194,24 @@
       return originalCreate(options);
     }
 
-    console.log('[Passkey Extension] Intercepting credential creation');
+    console.log('[Passkey Extension] Intercepting credential creation', options);
 
     try {
       const serializedOptions = serializeCreationOptions(options);
+      console.log('[Passkey Extension] Serialized options:', serializedOptions);
+
       const response = await sendMessage('createCredential', { options: serializedOptions });
+      console.log('[Passkey Extension] Response from background:', response);
 
       if (response.success) {
         console.log('[Passkey Extension] Credential created successfully');
-        return createCredentialResponse(response.credential);
+        const credential = createCredentialResponse(response.credential);
+        console.log('[Passkey Extension] Returning credential:', credential);
+        return credential;
       } else {
-        console.log('[Passkey Extension] Creation failed:', response.error);
-        // Fall back to native implementation
-        if (response.error && response.error.includes('locked')) {
-          throw new DOMException(response.error, 'NotAllowedError');
-        }
-        return originalCreate(options);
+        console.error('[Passkey Extension] Creation failed:', response.error);
+        // Throw error instead of falling back to avoid confusion
+        throw new DOMException(response.error || 'Creation failed', 'NotAllowedError');
       }
     } catch (error) {
       console.error('[Passkey Extension] Error:', error);
@@ -224,22 +226,24 @@
       return originalGet(options);
     }
 
-    console.log('[Passkey Extension] Intercepting credential request');
+    console.log('[Passkey Extension] Intercepting credential request', options);
 
     try {
       const serializedOptions = serializeRequestOptions(options);
+      console.log('[Passkey Extension] Serialized options:', serializedOptions);
+
       const response = await sendMessage('getAssertion', { options: serializedOptions });
+      console.log('[Passkey Extension] Response from background:', response);
 
       if (response.success) {
         console.log('[Passkey Extension] Assertion created successfully');
-        return createAssertionResponse(response.credential);
+        const credential = createAssertionResponse(response.credential);
+        console.log('[Passkey Extension] Returning credential:', credential);
+        return credential;
       } else {
-        console.log('[Passkey Extension] Assertion failed:', response.error);
-        // Fall back to native implementation
-        if (response.error && response.error.includes('locked')) {
-          throw new DOMException(response.error, 'NotAllowedError');
-        }
-        return originalGet(options);
+        console.error('[Passkey Extension] Assertion failed:', response.error);
+        // Throw error instead of falling back
+        throw new DOMException(response.error || 'Assertion failed', 'NotAllowedError');
       }
     } catch (error) {
       console.error('[Passkey Extension] Error:', error);

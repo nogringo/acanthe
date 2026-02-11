@@ -530,15 +530,21 @@ async function storePasskey(passkey) {
   await chrome.storage.local.set({ [STORAGE_KEYS.PASSKEYS]: newEncrypted });
 }
 
+// Convert base64 to base64url
+function toBase64Url(base64) {
+  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
 // Create client data JSON
 function createClientDataJSON(type, challenge, origin) {
   let challengeStr;
   if (typeof challenge === 'string') {
-    challengeStr = challenge;
+    // Convert from standard base64 to base64url
+    challengeStr = toBase64Url(challenge);
   } else if (challenge instanceof ArrayBuffer || challenge instanceof Uint8Array) {
-    challengeStr = arrayBufferToBase64(challenge).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+    challengeStr = toBase64Url(arrayBufferToBase64(challenge));
   } else {
-    challengeStr = arrayBufferToBase64(new Uint8Array(Object.values(challenge))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+    challengeStr = toBase64Url(arrayBufferToBase64(new Uint8Array(Object.values(challenge))));
   }
 
   const clientData = {

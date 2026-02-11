@@ -164,10 +164,39 @@ body {
   align-items: center;
   padding: 12px 16px;
   border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.preview-item:hover {
+  background: var(--bg);
 }
 
 .preview-item:last-child {
   border-bottom: none;
+}
+
+.preview-item.duplicate {
+  opacity: 0.6;
+}
+
+.duplicate-badge {
+  display: inline-block;
+  font-size: 10px;
+  color: var(--text-muted);
+  background: var(--border);
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 8px;
+  font-weight: 500;
+}
+
+.preview-checkbox {
+  width: 18px;
+  height: 18px;
+  margin-right: 12px;
+  cursor: pointer;
+  accent-color: var(--primary);
 }
 
 .preview-avatar {

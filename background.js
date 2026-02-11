@@ -62,6 +62,12 @@ async function handleMessage(message, sender) {
     case 'deletePasskey':
       return await deletePasskey(data.credentialId);
 
+    case 'changePassword':
+      return await changePassword(data.currentPassword, data.newPassword);
+
+    case 'reset':
+      return await resetExtension();
+
     case 'createCredential':
       return await handleCreateCredential(data.options, data.origin);
 
@@ -678,4 +684,79 @@ function createAttestationObject(authData) {
   items.push(...authData);
 
   return new Uint8Array(items);
+}
+
+// Change master password
+async function changePassword(currentPassword, newPassword) {
+  if (!isUnlocked) {
+    return { success: false, error: 'Extension is locked' };
+  }
+
+  if (!newPassword || newPassword.length < 8) {
+    return { success: false, error: 'New password must be at least 8 characters' };
+  }
+
+  try {
+    // Verify current password
+    const result = await chrome.storage.local.get([
+      STORAGE_KEYS.MASTER_PASSWORD_HASH,
+      STORAGE_KEYS.SALT,
+      STORAGE_KEYS.PASSKEYS
+    ]);
+
+    const storedHash = result[STORAGE_KEYS.MASTER_PASSWORD_HASH];
+    const saltBase64 = result[STORAGE_KEYS.SALT];
+
+    if (!storedHash || !saltBase64) {
+      return { success: false, error: 'Master password not set up' };
+    }
+
+    const salt = new Uint8Array(base64ToArrayBuffer(saltBase64));
+    const currentHash = await hashPassword(currentPassword, salt);
+
+    if (currentHash !== storedHash) {
+      return { success: false, error: 'Current password is incorrect' };
+    }
+
+    // Decrypt passkeys with old password
+    let passkeys = [];
+    const encryptedData = result[STORAGE_KEYS.PASSKEYS];
+    if (encryptedData && encryptedData.data) {
+      passkeys = await decrypt(encryptedData, currentPassword);
+    }
+
+    // Generate new salt and hash for new password
+    const newSalt = crypto.getRandomValues(new Uint8Array(16));
+    const newSaltBase64 = arrayBufferToBase64(newSalt);
+    const newPasswordHash = await hashPassword(newPassword, newSalt);
+
+    // Re-encrypt passkeys with new password
+    const newEncrypted = await encrypt(passkeys, newPassword);
+
+    // Store new hash, salt and re-encrypted passkeys
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.MASTER_PASSWORD_HASH]: newPasswordHash,
+      [STORAGE_KEYS.SALT]: newSaltBase64,
+      [STORAGE_KEYS.PASSKEYS]: newEncrypted
+    });
+
+    // Update session key
+    sessionKey = newPassword;
+
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+// Reset extension (delete all data)
+async function resetExtension() {
+  try {
+    await chrome.storage.local.clear();
+    sessionKey = null;
+    isUnlocked = false;
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
 }

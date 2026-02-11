@@ -8,62 +8,180 @@
 </head>
 <body>
   <div class="container">
-    <header>
-      <h1>🔐 Passkey Manager</h1>
-    </header>
-
     <!-- Setup Screen -->
     <div id="setup-screen" class="screen hidden">
-      <p class="description">Create a master password to secure your passkeys.</p>
-      <form id="setup-form">
+      <div class="setup-hero">
+        <div class="hero-icon">🔐</div>
+        <h2>Passkey Manager</h2>
+        <p>Create a master password to protect your passkeys.</p>
+      </div>
+      <form id="setup-form" class="form">
         <div class="form-group">
           <label for="setup-password">Master Password</label>
-          <input type="password" id="setup-password" placeholder="At least 8 characters" required minlength="8">
+          <div class="input-wrapper">
+            <input type="password" id="setup-password" placeholder="At least 8 characters" required minlength="8">
+            <button type="button" class="toggle-password" data-target="setup-password">👁️</button>
+          </div>
+          <div class="password-strength" id="password-strength">
+            <div class="strength-bar"><div class="strength-fill"></div></div>
+            <span class="strength-text">Enter a password</span>
+          </div>
         </div>
         <div class="form-group">
           <label for="setup-confirm">Confirm Password</label>
-          <input type="password" id="setup-confirm" placeholder="Confirm password" required minlength="8">
+          <div class="input-wrapper">
+            <input type="password" id="setup-confirm" placeholder="Confirm password" required minlength="8">
+            <button type="button" class="toggle-password" data-target="setup-confirm">👁️</button>
+          </div>
         </div>
-        <button type="submit" class="btn btn-primary">Create Password</button>
+        <button type="submit" class="btn btn-primary btn-block">Create Password</button>
       </form>
       <div id="setup-error" class="error hidden"></div>
     </div>
 
     <!-- Unlock Screen -->
     <div id="unlock-screen" class="screen hidden">
-      <p class="description">Enter your master password to unlock.</p>
-      <form id="unlock-form">
+      <div class="unlock-hero">
+        <div class="hero-icon">🔒</div>
+        <h2>Unlock Vault</h2>
+        <p>Enter your master password to access your passkeys.</p>
+      </div>
+      <form id="unlock-form" class="form">
         <div class="form-group">
           <label for="unlock-password">Master Password</label>
-          <input type="password" id="unlock-password" placeholder="Enter password" required>
+          <div class="input-wrapper">
+            <input type="password" id="unlock-password" placeholder="Enter password" required>
+            <button type="button" class="toggle-password" data-target="unlock-password">👁️</button>
+          </div>
         </div>
-        <button type="submit" class="btn btn-primary">Unlock</button>
+        <button type="submit" class="btn btn-primary btn-block">Unlock</button>
       </form>
       <div id="unlock-error" class="error hidden"></div>
     </div>
 
     <!-- Main Screen -->
     <div id="main-screen" class="screen hidden">
-      <div class="toolbar">
-        <span class="status">🔓 Unlocked</span>
-        <button id="lock-btn" class="btn btn-small">Lock</button>
+      <!-- Top Bar -->
+      <div class="top-bar">
+        <div class="search-wrapper">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="search-input" placeholder="Search passkeys..." class="search-input">
+          <button id="clear-search" class="clear-search hidden">✕</button>
+        </div>
+        <button id="lock-btn" class="btn-icon" title="Lock">🔒</button>
+        <button id="settings-btn" class="btn-icon" title="Settings">⚙️</button>
       </div>
 
+      <!-- Current Site Section -->
+      <div id="current-site-section" class="section current-site-section hidden">
+        <div class="section-header">
+          <span class="section-icon">🌐</span>
+          <h3 id="current-site-name">Current Site</h3>
+        </div>
+        <div id="current-site-passkeys" class="passkeys-grid"></div>
+      </div>
+
+      <!-- All Passkeys Section -->
       <div class="section">
-        <h2>Stored Passkeys</h2>
         <div id="passkeys-list" class="passkeys-list">
-          <p class="empty-state">No passkeys stored yet.</p>
+          <div class="empty-state">
+            <div class="empty-icon">🔑</div>
+            <h4>No passkeys yet</h4>
+            <p>Visit a website that supports passkeys to create one.</p>
+          </div>
         </div>
       </div>
+    </div>
 
-      <div class="section">
-        <h2>Instructions</h2>
-        <ul class="instructions">
-          <li>Visit a WebAuthn-enabled site</li>
-          <li>Register or login with a passkey</li>
-          <li>Your passkeys are stored securely</li>
-        </ul>
+    <!-- Settings Screen -->
+    <div id="settings-screen" class="screen hidden">
+      <div class="settings-header">
+        <button id="back-btn" class="btn-back">← Back</button>
+        <h2>Settings</h2>
       </div>
+
+      <div class="settings-section">
+        <h3>Data</h3>
+        <button id="export-btn" class="settings-item">
+          <span class="settings-item-icon">📤</span>
+          <div class="settings-item-content">
+            <span class="settings-item-title">Export passkeys</span>
+            <span class="settings-item-desc">Download a JSON file with your passkey metadata</span>
+          </div>
+          <span class="settings-item-arrow">›</span>
+        </button>
+      </div>
+
+      <div class="settings-section">
+        <h3>Security</h3>
+        <button id="change-password-btn" class="settings-item">
+          <span class="settings-item-icon">🔑</span>
+          <div class="settings-item-content">
+            <span class="settings-item-title">Change master password</span>
+            <span class="settings-item-desc">Update your vault encryption password</span>
+          </div>
+          <span class="settings-item-arrow">›</span>
+        </button>
+        <button id="reset-btn" class="settings-item settings-item-danger">
+          <span class="settings-item-icon">🗑️</span>
+          <div class="settings-item-content">
+            <span class="settings-item-title">Reset extension</span>
+            <span class="settings-item-desc">Delete all passkeys and start fresh</span>
+          </div>
+          <span class="settings-item-arrow">›</span>
+        </button>
+      </div>
+
+      <div class="settings-section">
+        <h3>About</h3>
+        <div class="settings-info">
+          <p><strong>Passkey Manager</strong> v1.0.0</p>
+          <p>Passkeys are encrypted with AES-256-GCM using Argon2id key derivation.</p>
+        </div>
+        <a href="https://webauthn.io" target="_blank" class="settings-item">
+          <span class="settings-item-icon">🧪</span>
+          <div class="settings-item-content">
+            <span class="settings-item-title">Test passkeys</span>
+            <span class="settings-item-desc">Try WebAuthn on webauthn.io</span>
+          </div>
+          <span class="settings-item-arrow">›</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- Change Password Screen -->
+    <div id="change-password-screen" class="screen hidden">
+      <div class="settings-header">
+        <button id="back-from-password-btn" class="btn-back">← Back</button>
+        <h2>Change Password</h2>
+      </div>
+
+      <form id="change-password-form" class="form">
+        <div class="form-group">
+          <label for="current-password">Current Password</label>
+          <div class="input-wrapper">
+            <input type="password" id="current-password" placeholder="Enter current password" required>
+            <button type="button" class="toggle-password" data-target="current-password">👁️</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="new-password">New Password</label>
+          <div class="input-wrapper">
+            <input type="password" id="new-password" placeholder="At least 8 characters" required minlength="8">
+            <button type="button" class="toggle-password" data-target="new-password">👁️</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="confirm-new-password">Confirm New Password</label>
+          <div class="input-wrapper">
+            <input type="password" id="confirm-new-password" placeholder="Confirm new password" required minlength="8">
+            <button type="button" class="toggle-password" data-target="confirm-new-password">👁️</button>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Update Password</button>
+      </form>
+      <div id="change-password-error" class="error hidden"></div>
+      <div id="change-password-success" class="success hidden"></div>
     </div>
   </div>
 

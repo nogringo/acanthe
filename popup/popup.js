@@ -6,15 +6,49 @@ document.addEventListener('DOMContentLoaded', init);
 const setupScreen = document.getElementById('setup-screen');
 const unlockScreen = document.getElementById('unlock-screen');
 const mainScreen = document.getElementById('main-screen');
+const settingsScreen = document.getElementById('settings-screen');
+const changePasswordScreen = document.getElementById('change-password-screen');
+
 const setupForm = document.getElementById('setup-form');
 const unlockForm = document.getElementById('unlock-form');
+const changePasswordForm = document.getElementById('change-password-form');
+
 const lockBtn = document.getElementById('lock-btn');
+const settingsBtn = document.getElementById('settings-btn');
+const backBtn = document.getElementById('back-btn');
+const backFromPasswordBtn = document.getElementById('back-from-password-btn');
+const exportBtn = document.getElementById('export-btn');
+const changePasswordBtn = document.getElementById('change-password-btn');
+const resetBtn = document.getElementById('reset-btn');
+
 const passkeysList = document.getElementById('passkeys-list');
+const searchInput = document.getElementById('search-input');
+const clearSearchBtn = document.getElementById('clear-search');
+const currentSiteSection = document.getElementById('current-site-section');
+const currentSitePasskeys = document.getElementById('current-site-passkeys');
+const currentSiteName = document.getElementById('current-site-name');
+
 const setupError = document.getElementById('setup-error');
 const unlockError = document.getElementById('unlock-error');
+const changePasswordError = document.getElementById('change-password-error');
+const changePasswordSuccess = document.getElementById('change-password-success');
+
+let allPasskeys = [];
+let currentTabUrl = null;
+let previousScreen = 'main';
 
 // Initialize popup
 async function init() {
+  // Get current tab URL
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.url) {
+      currentTabUrl = new URL(tab.url).hostname;
+    }
+  } catch (e) {
+    console.log('Could not get current tab');
+  }
+
   const setupStatus = await sendMessage('checkSetup');
 
   if (!setupStatus.isSetup) {
@@ -37,16 +71,27 @@ function showScreen(screen) {
   setupScreen.classList.add('hidden');
   unlockScreen.classList.add('hidden');
   mainScreen.classList.add('hidden');
+  settingsScreen.classList.add('hidden');
+  changePasswordScreen.classList.add('hidden');
 
   switch (screen) {
     case 'setup':
       setupScreen.classList.remove('hidden');
+      document.getElementById('setup-password').focus();
       break;
     case 'unlock':
       unlockScreen.classList.remove('hidden');
+      document.getElementById('unlock-password').focus();
       break;
     case 'main':
       mainScreen.classList.remove('hidden');
+      break;
+    case 'settings':
+      settingsScreen.classList.remove('hidden');
+      break;
+    case 'change-password':
+      changePasswordScreen.classList.remove('hidden');
+      document.getElementById('current-password').focus();
       break;
   }
 }
@@ -55,7 +100,85 @@ function showScreen(screen) {
 function setupEventListeners() {
   setupForm.addEventListener('submit', handleSetup);
   unlockForm.addEventListener('submit', handleUnlock);
+  changePasswordForm.addEventListener('submit', handleChangePassword);
+
   lockBtn.addEventListener('click', handleLock);
+  settingsBtn.addEventListener('click', () => {
+    previousScreen = 'main';
+    showScreen('settings');
+  });
+  backBtn.addEventListener('click', () => showScreen(previousScreen));
+  backFromPasswordBtn.addEventListener('click', () => showScreen('settings'));
+
+  // Password visibility toggles
+  document.querySelectorAll('.toggle-password').forEach(btn => {
+    btn.addEventListener('click', togglePasswordVisibility);
+  });
+
+  // Password strength indicator
+  const setupPassword = document.getElementById('setup-password');
+  setupPassword.addEventListener('input', updatePasswordStrength);
+
+  // Search functionality
+  searchInput.addEventListener('input', handleSearch);
+  clearSearchBtn.addEventListener('click', clearSearch);
+
+  // Settings actions
+  exportBtn.addEventListener('click', handleExport);
+  changePasswordBtn.addEventListener('click', () => showScreen('change-password'));
+  resetBtn.addEventListener('click', handleReset);
+}
+
+// Toggle password visibility
+function togglePasswordVisibility(e) {
+  const targetId = e.currentTarget.dataset.target;
+  const input = document.getElementById(targetId);
+  const btn = e.currentTarget;
+
+  if (input.type === 'password') {
+    input.type = 'text';
+    btn.textContent = '🙈';
+  } else {
+    input.type = 'password';
+    btn.textContent = '👁️';
+  }
+}
+
+// Update password strength indicator
+function updatePasswordStrength(e) {
+  const password = e.target.value;
+  const strengthFill = document.querySelector('.strength-fill');
+  const strengthText = document.querySelector('.strength-text');
+
+  if (!password) {
+    strengthFill.className = 'strength-fill';
+    strengthText.textContent = 'Enter a password';
+    return;
+  }
+
+  const strength = calculatePasswordStrength(password);
+
+  if (strength < 2) {
+    strengthFill.className = 'strength-fill weak';
+    strengthText.textContent = 'Weak';
+  } else if (strength < 4) {
+    strengthFill.className = 'strength-fill medium';
+    strengthText.textContent = 'Medium';
+  } else {
+    strengthFill.className = 'strength-fill strong';
+    strengthText.textContent = 'Strong';
+  }
+}
+
+// Calculate password strength
+function calculatePasswordStrength(password) {
+  let strength = 0;
+  if (password.length >= 8) strength++;
+  if (password.length >= 12) strength++;
+  if (/[a-z]/.test(password) && /[A-Z]/.test(password)) strength++;
+  if (/\d/.test(password)) strength++;
+  if (/[^a-zA-Z0-9]/.test(password)) strength++;
+  return strength;
 }
 
 // Handle master password setup
@@ -109,44 +232,211 @@ async function handleLock() {
   showScreen('unlock');
 }
 
+// Handle change password
+async function handleChangePassword(e) {
+  e.preventDefault();
+
+  hideError(changePasswordError);
+  hideError(changePasswordSuccess);
+
+  const currentPassword = document.getElementById('current-password').value;
+  const newPassword = document.getElementById('new-password').value;
+  const confirmNewPassword = document.getElementById('confirm-new-password').value;
+
+  if (newPassword !== confirmNewPassword) {
+    showError(changePasswordError, 'New passwords do not match');
+    return;
+  }
+
+  if (newPassword.length < 8) {
+    showError(changePasswordError, 'New password must be at least 8 characters');
+    return;
+  }
+
+  const result = await sendMessage('changePassword', {
+    currentPassword,
+    newPassword
+  });
+
+  if (result.success) {
+    showSuccess(changePasswordSuccess, 'Password updated successfully');
+    document.getElementById('current-password').value = '';
+    document.getElementById('new-password').value = '';
+    document.getElementById('confirm-new-password').value = '';
+  } else {
+    showError(changePasswordError, result.error || 'Failed to change password');
+  }
+}
+
+// Handle reset
+async function handleReset() {
+  const confirmed = confirm(
+    'Are you sure you want to reset the extension?\n\n' +
+    'This will permanently delete ALL your passkeys and cannot be undone.'
+  );
+
+  if (!confirmed) return;
+
+  const doubleConfirm = confirm(
+    'This is your last chance to cancel.\n\n' +
+    'Type OK to confirm you want to delete all passkeys.'
+  );
+
+  if (!doubleConfirm) return;
+
+  const result = await sendMessage('reset');
+
+  if (result.success) {
+    showScreen('setup');
+  } else {
+    alert('Failed to reset: ' + (result.error || 'Unknown error'));
+  }
+}
+
 // Load and display passkeys
 async function loadPasskeys() {
   const result = await sendMessage('getPasskeys');
 
   if (!result.success) {
-    passkeysList.innerHTML = '<p class="empty-state">Error loading passkeys</p>';
+    passkeysList.innerHTML = '<div class="empty-state"><div class="empty-icon">⚠️</div><h4>Error loading passkeys</h4></div>';
     return;
   }
 
-  if (result.passkeys.length === 0) {
-    passkeysList.innerHTML = '<p class="empty-state">No passkeys stored yet.</p>';
+  allPasskeys = result.passkeys;
+  renderPasskeys(allPasskeys);
+  renderCurrentSitePasskeys();
+}
+
+// Render current site passkeys
+function renderCurrentSitePasskeys() {
+  if (!currentTabUrl) {
+    currentSiteSection.classList.add('hidden');
     return;
   }
 
-  passkeysList.innerHTML = result.passkeys.map(passkey => `
-    <div class="passkey-item" data-id="${passkey.credentialId}">
+  const sitePasskeys = allPasskeys.filter(p => p.rpId === currentTabUrl);
+
+  if (sitePasskeys.length === 0) {
+    currentSiteSection.classList.add('hidden');
+    return;
+  }
+
+  currentSiteSection.classList.remove('hidden');
+  currentSiteName.textContent = currentTabUrl;
+  currentSitePasskeys.innerHTML = sitePasskeys.map(passkey => renderPasskeyItem(passkey, true)).join('');
+
+  // Add delete handlers
+  currentSitePasskeys.querySelectorAll('.delete-btn').forEach(btn => {
+    btn.addEventListener('click', handleDelete);
+  });
+}
+
+// Render passkeys list
+function renderPasskeys(passkeys) {
+  if (passkeys.length === 0) {
+    passkeysList.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">🔑</div>
+        <h4>No passkeys yet</h4>
+        <p>Visit a website that supports passkeys to create one.</p>
+      </div>
+    `;
+    return;
+  }
+
+  // Group by site
+  const grouped = {};
+  passkeys.forEach(passkey => {
+    const site = passkey.rpId;
+    if (!grouped[site]) grouped[site] = [];
+    grouped[site].push(passkey);
+  });
+
+  // Sort sites alphabetically
+  const sortedSites = Object.keys(grouped).sort();
+
+  let html = '';
+  sortedSites.forEach(site => {
+    html += `<div class="site-group">`;
+    html += `<div class="site-group-header">${escapeHtml(site)}</div>`;
+    grouped[site].forEach(passkey => {
+      html += renderPasskeyItem(passkey, false);
+    });
+    html += `</div>`;
+  });
+
+  passkeysList.innerHTML = html;
+
+  // Add delete handlers
+  passkeysList.querySelectorAll('.delete-btn').forEach(btn => {
+    btn.addEventListener('click', handleDelete);
+  });
+}
+
+// Render single passkey item
+function renderPasskeyItem(passkey, isCurrentSite) {
+  const initial = (passkey.userDisplayName || passkey.userName || '?')[0].toUpperCase();
+  const className = isCurrentSite ? 'passkey-item current-site' : 'passkey-item';
+
+  return `
+    <div class="${className}" data-id="${passkey.credentialId}">
+      <div class="passkey-avatar">${initial}</div>
       <div class="passkey-info">
         <div class="passkey-site">${escapeHtml(passkey.rpName || passkey.rpId)}</div>
-        <div class="passkey-user">${escapeHtml(passkey.userDisplayName || passkey.userName)}</div>
-        <div class="passkey-date">${formatDate(passkey.createdAt)}</div>
+        <div class="passkey-user">${escapeHtml(passkey.userDisplayName || passkey.userName || 'Unknown')}</div>
+        <div class="passkey-meta">
+          <span class="passkey-date">${formatDate(passkey.createdAt)}</span>
+        </div>
       </div>
       <div class="passkey-actions">
         <button class="btn btn-danger delete-btn" data-id="${passkey.credentialId}">Delete</button>
       </div>
     </div>
-  `).join('');
+  `;
+}
 
-  // Add delete handlers
-  document.querySelectorAll('.delete-btn').forEach(btn => {
-    btn.addEventListener('click', handleDelete);
-  });
+// Handle search
+function handleSearch(e) {
+  const query = e.target.value.toLowerCase().trim();
+
+  if (query) {
+    clearSearchBtn.classList.remove('hidden');
+    const filtered = allPasskeys.filter(p =>
+      (p.rpId && p.rpId.toLowerCase().includes(query)) ||
+      (p.rpName && p.rpName.toLowerCase().includes(query)) ||
+      (p.userName && p.userName.toLowerCase().includes(query)) ||
+      (p.userDisplayName && p.userDisplayName.toLowerCase().includes(query))
+    );
+
+    if (filtered.length === 0) {
+      passkeysList.innerHTML = `
+        <div class="no-results">
+          <div class="no-results-icon">🔍</div>
+          <p>No passkeys found for "${escapeHtml(query)}"</p>
+        </div>
+      `;
+    } else {
+      renderPasskeys(filtered);
+    }
+  } else {
+    clearSearchBtn.classList.add('hidden');
+    renderPasskeys(allPasskeys);
+  }
+}
+
+// Clear search
+function clearSearch() {
+  searchInput.value = '';
+  clearSearchBtn.classList.add('hidden');
+  renderPasskeys(allPasskeys);
 }
 
 // Handle passkey deletion
 async function handleDelete(e) {
+  e.stopPropagation();
   const credentialId = e.target.dataset.id;
 
-  if (!confirm('Are you sure you want to delete this passkey?')) {
+  if (!confirm('Delete this passkey? This cannot be undone.')) {
     return;
   }
 
@@ -157,6 +447,33 @@ async function handleDelete(e) {
   } else {
     alert('Failed to delete passkey: ' + result.error);
   }
+}
+
+// Handle export
+async function handleExport() {
+  if (allPasskeys.length === 0) {
+    alert('No passkeys to export');
+    return;
+  }
+
+  // Export metadata only (not private keys for security)
+  const exportData = allPasskeys.map(p => ({
+    site: p.rpId,
+    siteName: p.rpName,
+    user: p.userName,
+    displayName: p.userDisplayName,
+    createdAt: p.createdAt
+  }));
+
+  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `passkeys-export-${new Date().toISOString().split('T')[0]}.json`;
+  a.click();
+
+  URL.revokeObjectURL(url);
 }
 
 // Send message to background script
@@ -174,7 +491,13 @@ function showError(element, message) {
   element.classList.remove('hidden');
 }
 
-// Hide error message
+// Show success message
+function showSuccess(element, message) {
+  element.textContent = message;
+  element.classList.remove('hidden');
+}
+
+// Hide error/success message
 function hideError(element) {
   element.classList.add('hidden');
 }
@@ -182,7 +505,7 @@ function hideError(element) {
 // Escape HTML to prevent XSS
 function escapeHtml(text) {
   const div = document.createElement('div');
-  div.textContent = text;
+  div.textContent = text || '';
   return div.innerHTML;
 }
 
@@ -190,6 +513,26 @@ function escapeHtml(text) {
 function formatDate(timestamp) {
   if (!timestamp) return 'Unknown';
   const date = new Date(timestamp);
+  const now = new Date();
+  const diff = now - date;
+
+  // Less than 24 hours ago
+  if (diff < 86400000) {
+    const hours = Math.floor(diff / 3600000);
+    if (hours === 0) {
+      const minutes = Math.floor(diff / 60000);
+      return minutes <= 1 ? 'Just now' : `${minutes}m ago`;
+    }
+    return `${hours}h ago`;
+  }
+
+  // Less than 7 days
+  if (diff < 604800000) {
+    const days = Math.floor(diff / 86400000);
+    return days === 1 ? 'Yesterday' : `${days} days ago`;
+  }
+
+  // Default format
   return date.toLocaleDateString(undefined, {
     year: 'numeric',
     month: 'short',

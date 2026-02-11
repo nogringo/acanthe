@@ -19,7 +19,6 @@ const backBtn = document.getElementById('back-btn');
 const backFromPasswordBtn = document.getElementById('back-from-password-btn');
 const exportBtn = document.getElementById('export-btn');
 const importBtn = document.getElementById('import-btn');
-const importFile = document.getElementById('import-file');
 const changePasswordBtn = document.getElementById('change-password-btn');
 const resetBtn = document.getElementById('reset-btn');
 
@@ -127,8 +126,9 @@ function setupEventListeners() {
 
   // Settings actions
   exportBtn.addEventListener('click', handleExport);
-  importBtn.addEventListener('click', () => importFile.click());
-  importFile.addEventListener('change', handleImport);
+  importBtn.addEventListener('click', () => {
+    chrome.tabs.create({ url: chrome.runtime.getURL('import/import.html') });
+  });
   changePasswordBtn.addEventListener('click', () => showScreen('change-password'));
   resetBtn.addEventListener('click', handleReset);
 }
@@ -482,29 +482,6 @@ async function handleExport() {
   a.click();
 
   URL.revokeObjectURL(url);
-}
-
-// Handle import
-async function handleImport(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-
-  try {
-    const text = await file.text();
-    const result = await sendMessage('importPasskeysBitwarden', { jsonData: text });
-
-    if (result.success) {
-      alert(`Import complete!\n\nImported: ${result.imported} passkey(s)\nSkipped (duplicates): ${result.skipped}`);
-      loadPasskeys();
-    } else {
-      alert('Import failed: ' + (result.error || 'Unknown error'));
-    }
-  } catch (error) {
-    alert('Failed to read file: ' + error.message);
-  }
-
-  // Reset file input
-  e.target.value = '';
 }
 
 // Send message to background script

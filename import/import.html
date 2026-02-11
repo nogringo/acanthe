@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Import Passkeys - Passkey Manager</title>
+  <link rel="stylesheet" href="import.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="header-icon">📥</div>
+      <h1>Import Passkeys</h1>
+      <p>Import passkeys from a Bitwarden JSON export file</p>
+    </div>
+
+    <!-- Step 1: Select file -->
+    <div id="step-select" class="step">
+      <div class="file-drop" id="file-drop">
+        <div class="file-drop-icon">📁</div>
+        <div class="file-drop-text">
+          <p>Drag and drop your file here</p>
+          <p class="or">or</p>
+          <button class="btn btn-primary" id="select-file-btn">Select File</button>
+        </div>
+        <input type="file" id="import-file" accept=".json" hidden>
+      </div>
+    </div>
+
+    <!-- Step 2: Preview -->
+    <div id="step-preview" class="step hidden">
+      <div class="preview-header">
+        <span id="preview-count"></span>
+      </div>
+      <div class="preview-list" id="preview-list"></div>
+      <div class="preview-actions">
+        <button class="btn btn-secondary" id="back-btn">Back</button>
+        <button class="btn btn-primary" id="import-btn">Import</button>
+      </div>
+    </div>
+
+    <!-- Step 3: Result -->
+    <div id="step-result" class="step hidden">
+      <div class="result-icon" id="result-icon">✓</div>
+      <div class="result-message" id="result-message"></div>
+      <button class="btn btn-primary" id="close-btn">Close</button>
+    </div>
+  </div>
+
+  <script src="import.js"></script>
+</body>
+</html>

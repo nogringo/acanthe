@@ -28,7 +28,7 @@ const STORAGE_KEYS = {
 
 // Initialize extension
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('Passkey Manager installed');
+  // Extension installed
 });
 
 // Message handler
@@ -490,7 +490,6 @@ async function createCredential(options, origin) {
       }
     };
   } catch (error) {
-    console.error('Create credential error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -596,7 +595,6 @@ async function getAssertion(options, origin, selectedCredentialId = null) {
       }
     };
   } catch (error) {
-    console.error('Get assertion error:', error);
     return { success: false, error: error.message };
   }
 }

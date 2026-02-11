@@ -194,27 +194,16 @@
       return originalCreate(options);
     }
 
-    console.log('[Passkey Extension] Intercepting credential creation', options);
-
     try {
       const serializedOptions = serializeCreationOptions(options);
-      console.log('[Passkey Extension] Serialized options:', serializedOptions);
-
       const response = await sendMessage('createCredential', { options: serializedOptions });
-      console.log('[Passkey Extension] Response from background:', response);
 
       if (response.success) {
-        console.log('[Passkey Extension] Credential created successfully');
-        const credential = createCredentialResponse(response.credential);
-        console.log('[Passkey Extension] Returning credential:', credential);
-        return credential;
+        return createCredentialResponse(response.credential);
       } else {
-        console.error('[Passkey Extension] Creation failed:', response.error);
-        // Throw error instead of falling back to avoid confusion
         throw new DOMException(response.error || 'Creation failed', 'NotAllowedError');
       }
     } catch (error) {
-      console.error('[Passkey Extension] Error:', error);
       throw error;
     }
   };
@@ -226,30 +215,18 @@
       return originalGet(options);
     }
 
-    console.log('[Passkey Extension] Intercepting credential request', options);
-
     try {
       const serializedOptions = serializeRequestOptions(options);
-      console.log('[Passkey Extension] Serialized options:', serializedOptions);
-
       const response = await sendMessage('getAssertion', { options: serializedOptions });
-      console.log('[Passkey Extension] Response from background:', response);
 
       if (response.success) {
-        console.log('[Passkey Extension] Assertion created successfully');
-        const credential = createAssertionResponse(response.credential);
-        console.log('[Passkey Extension] Returning credential:', credential);
-        return credential;
+        return createAssertionResponse(response.credential);
       } else {
         // No matching passkey - fall back to native WebAuthn
-        console.log('[Passkey Extension] No passkey found, falling back to native');
         return originalGet(options);
       }
     } catch (error) {
-      console.error('[Passkey Extension] Error:', error);
       return originalGet(options);
     }
   };
-
-  console.log('[Passkey Extension] WebAuthn methods overridden');
 })();

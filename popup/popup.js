@@ -46,7 +46,7 @@ async function init() {
       currentTabUrl = new URL(tab.url).hostname;
     }
   } catch (e) {
-    console.log('Could not get current tab');
+    // Silent fail - currentTabUrl will remain null
   }
 
   const setupStatus = await sendMessage('checkSetup');

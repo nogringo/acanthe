@@ -17,7 +17,7 @@ try {
     accounts = JSON.parse(decodeURIComponent(accountsJson));
   }
 } catch (e) {
-  console.error('Failed to parse accounts:', e);
+  // Silent fail - accounts will remain empty array
 }
 
 // Update UI based on action type

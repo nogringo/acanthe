@@ -71,6 +71,9 @@ async function handleMessage(message, sender) {
     case 'confirmResponse':
       return handleConfirmResponse(requestId, confirmed);
 
+    case 'unlockResponse':
+      return handleUnlockResponse(requestId, message.unlocked);
+
     default:
       return { success: false, error: 'Unknown action' };
   }
@@ -119,10 +122,57 @@ function handleConfirmResponse(requestId, confirmed) {
   return { success: true };
 }
 
+// Pending unlock requests
+const pendingUnlocks = new Map();
+
+// Show unlock popup
+async function showUnlockPopup(origin) {
+  const requestId = `unlock_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+  return new Promise((resolve) => {
+    pendingUnlocks.set(requestId, resolve);
+
+    const params = new URLSearchParams({
+      requestId,
+      origin: origin || ''
+    });
+
+    chrome.windows.create({
+      url: `unlock/unlock.html?${params.toString()}`,
+      type: 'popup',
+      width: 450,
+      height: 380,
+      focused: true
+    });
+
+    // Timeout after 60 seconds
+    setTimeout(() => {
+      if (pendingUnlocks.has(requestId)) {
+        pendingUnlocks.delete(requestId);
+        resolve(false);
+      }
+    }, 60000);
+  });
+}
+
+// Handle unlock response
+function handleUnlockResponse(requestId, unlocked) {
+  const resolve = pendingUnlocks.get(requestId);
+  if (resolve) {
+    pendingUnlocks.delete(requestId);
+    resolve(unlocked);
+  }
+  return { success: true };
+}
+
 // Handle create credential with confirmation
 async function handleCreateCredential(options, origin) {
   if (!isUnlocked) {
-    return { success: false, error: 'Extension is locked. Please unlock first.' };
+    // Show unlock popup
+    const unlocked = await showUnlockPopup(origin);
+    if (!unlocked || !isUnlocked) {
+      return { success: false, error: 'Extension is locked' };
+    }
   }
 
   const { publicKey } = options;
@@ -142,7 +192,11 @@ async function handleCreateCredential(options, origin) {
 // Handle get assertion with confirmation
 async function handleGetAssertion(options, origin) {
   if (!isUnlocked) {
-    return { success: false, error: 'Extension is locked. Please unlock first.' };
+    // Show unlock popup
+    const unlocked = await showUnlockPopup(origin);
+    if (!unlocked || !isUnlocked) {
+      return { success: false, error: 'Extension is locked' };
+    }
   }
 
   const { publicKey } = options;

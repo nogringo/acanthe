@@ -11,6 +11,7 @@ try {
 mkdirSync('dist', { recursive: true });
 mkdirSync('dist/popup', { recursive: true });
 mkdirSync('dist/confirm', { recursive: true });
+mkdirSync('dist/unlock', { recursive: true });
 mkdirSync('dist/icons', { recursive: true });
 
 // Copy static files
@@ -19,6 +20,8 @@ cpSync('popup/popup.html', 'dist/popup/popup.html');
 cpSync('popup/popup.css', 'dist/popup/popup.css');
 cpSync('confirm/confirm.html', 'dist/confirm/confirm.html');
 cpSync('confirm/confirm.js', 'dist/confirm/confirm.js');
+cpSync('unlock/unlock.html', 'dist/unlock/unlock.html');
+cpSync('unlock/unlock.js', 'dist/unlock/unlock.js');
 cpSync('content.js', 'dist/content.js');
 cpSync('injected.js', 'dist/injected.js');
 cpSync('icons', 'dist/icons', { recursive: true });

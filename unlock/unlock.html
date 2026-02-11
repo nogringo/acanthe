@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Unlock Passkey Manager</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+      padding: 20px;
+      min-width: 400px;
+    }
+
+    .container {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .icon {
+      font-size: 32px;
+    }
+
+    .title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #333;
+    }
+
+    .subtitle {
+      font-size: 13px;
+      color: #666;
+    }
+
+    .info-box {
+      background: #fff3cd;
+      border: 1px solid #ffc107;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 20px;
+      font-size: 13px;
+      color: #856404;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group label {
+      display: block;
+      font-weight: 500;
+      margin-bottom: 6px;
+      color: #444;
+      font-size: 14px;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .form-group input:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .error {
+      color: #dc3545;
+      font-size: 13px;
+      margin-top: 8px;
+      display: none;
+    }
+
+    .buttons {
+      display: flex;
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 12px 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-cancel {
+      background: #e9ecef;
+      color: #495057;
+    }
+
+    .btn-cancel:hover {
+      background: #dee2e6;
+    }
+
+    .btn-unlock {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+
+    .btn-unlock:hover {
+      opacity: 0.9;
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .site-info {
+      background: #f8f9fa;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 16px;
+    }
+
+    .site-info-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+    }
+
+    .site-info-label {
+      color: #666;
+    }
+
+    .site-info-value {
+      color: #333;
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <span class="icon">🔒</span>
+      <div>
+        <div class="title">Unlock Required</div>
+        <div class="subtitle">Enter your master password to continue</div>
+      </div>
+    </div>
+
+    <div class="info-box">
+      A website is requesting a passkey operation. Please unlock the extension to proceed.
+    </div>
+
+    <div class="site-info">
+      <div class="site-info-row">
+        <span class="site-info-label">Site</span>
+        <span class="site-info-value" id="site">-</span>
+      </div>
+    </div>
+
+    <form id="unlock-form">
+      <div class="form-group">
+        <label for="password">Master Password</label>
+        <input type="password" id="password" placeholder="Enter your password" required autofocus>
+        <div class="error" id="error"></div>
+      </div>
+
+      <div class="buttons">
+        <button type="button" class="btn btn-cancel" id="cancel-btn">Cancel</button>
+        <button type="submit" class="btn btn-unlock">Unlock</button>
+      </div>
+    </form>
+  </div>
+
+  <script src="unlock.js"></script>
+</body>
+</html>

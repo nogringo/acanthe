@@ -69,7 +69,7 @@ async function handleMessage(message, sender) {
       return await handleGetAssertion(data.options, data.origin);
 
     case 'confirmResponse':
-      return handleConfirmResponse(requestId, confirmed);
+      return handleConfirmResponse(requestId, confirmed, message.selectedCredentialId);
 
     case 'unlockResponse':
       return handleUnlockResponse(requestId, message.unlocked);
@@ -80,7 +80,7 @@ async function handleMessage(message, sender) {
 }
 
 // Show confirmation popup
-async function showConfirmation(action, origin, rpName, userName) {
+async function showConfirmation(action, origin, rpName, userName, accounts = null) {
   const requestId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
   return new Promise((resolve) => {
@@ -94,11 +94,21 @@ async function showConfirmation(action, origin, rpName, userName) {
       userName: userName || ''
     });
 
+    // Add accounts for selection if provided
+    if (accounts && accounts.length > 0) {
+      params.set('accounts', encodeURIComponent(JSON.stringify(accounts)));
+    }
+
+    // Calculate height based on number of accounts
+    const baseHeight = 320;
+    const accountHeight = accounts ? Math.min(accounts.length, 4) * 60 : 0;
+    const windowHeight = baseHeight + accountHeight;
+
     chrome.windows.create({
       url: `confirm/confirm.html?${params.toString()}`,
       type: 'popup',
-      width: 450,
-      height: 350,
+      width: 460,
+      height: windowHeight,
       focused: true
     });
 
@@ -106,18 +116,18 @@ async function showConfirmation(action, origin, rpName, userName) {
     setTimeout(() => {
       if (pendingConfirmations.has(requestId)) {
         pendingConfirmations.delete(requestId);
-        resolve(false);
+        resolve({ confirmed: false });
       }
     }, 60000);
   });
 }
 
 // Handle confirmation response
-function handleConfirmResponse(requestId, confirmed) {
+function handleConfirmResponse(requestId, confirmed, selectedCredentialId) {
   const resolve = pendingConfirmations.get(requestId);
   if (resolve) {
     pendingConfirmations.delete(requestId);
-    resolve(confirmed);
+    resolve({ confirmed, selectedCredentialId });
   }
   return { success: true };
 }
@@ -180,9 +190,9 @@ async function handleCreateCredential(options, origin) {
   const userName = publicKey.user.displayName || publicKey.user.name;
 
   // Show confirmation popup
-  const confirmed = await showConfirmation('create', origin, rpName, userName);
+  const result = await showConfirmation('create', origin, rpName, userName);
 
-  if (!confirmed) {
+  if (!result.confirmed) {
     return { success: false, error: 'User denied the request' };
   }
 
@@ -239,16 +249,31 @@ async function handleGetAssertion(options, origin) {
     return { success: false, error: 'No matching passkey found for this site' };
   }
 
-  const passkey = matchingPasskeys[0];
+  // Prepare accounts for selection (only metadata, no private keys)
+  const accountsForSelection = matchingPasskeys.map(pk => ({
+    credentialId: pk.credentialId,
+    userName: pk.userName,
+    userDisplayName: pk.userDisplayName,
+    rpName: pk.rpName
+  }));
 
-  // Show confirmation popup
-  const confirmed = await showConfirmation('get', origin, passkey.rpName || rpId, passkey.userDisplayName || passkey.userName);
+  // Show confirmation popup with account selection
+  const confirmResult = await showConfirmation('get', origin, matchingPasskeys[0].rpName || rpId, null, accountsForSelection);
 
-  if (!confirmed) {
+  if (!confirmResult.confirmed) {
     return { success: false, error: 'User denied the request' };
   }
 
-  return await getAssertion(options, origin);
+  // Find the selected passkey
+  let selectedPasskey;
+  if (confirmResult.selectedCredentialId) {
+    selectedPasskey = matchingPasskeys.find(pk => pk.credentialId === confirmResult.selectedCredentialId);
+  }
+  if (!selectedPasskey) {
+    selectedPasskey = matchingPasskeys[0]; // Fallback to first
+  }
+
+  return await getAssertion(options, origin, selectedPasskey.credentialId);
 }
 
 // Check if master password is set up
@@ -465,7 +490,7 @@ async function createCredential(options, origin) {
 }
 
 // Get assertion (authentication)
-async function getAssertion(options, origin) {
+async function getAssertion(options, origin, selectedCredentialId = null) {
   try {
     const { publicKey } = options;
     const rpId = publicKey.rpId || new URL(origin).hostname;
@@ -505,8 +530,14 @@ async function getAssertion(options, origin) {
       return { success: false, error: 'No matching passkey found for this site' };
     }
 
-    // Use the first matching passkey
-    const passkey = matchingPasskeys[0];
+    // Use selected passkey or fallback to first
+    let passkey;
+    if (selectedCredentialId) {
+      passkey = matchingPasskeys.find(pk => pk.credentialId === selectedCredentialId);
+    }
+    if (!passkey) {
+      passkey = matchingPasskeys[0];
+    }
 
     // Increment sign count
     passkey.signCount = (passkey.signCount || 0) + 1;

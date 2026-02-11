@@ -15,7 +15,7 @@
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background: #f5f5f5;
       padding: 20px;
-      min-width: 400px;
+      min-width: 420px;
     }
 
     .container {
@@ -29,7 +29,7 @@
       display: flex;
       align-items: center;
       gap: 12px;
-      margin-bottom: 20px;
+      margin-bottom: 16px;
     }
 
     .icon {
@@ -47,46 +47,136 @@
       color: #666;
     }
 
+    .site-badge {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 500;
+      display: inline-block;
+      margin-bottom: 16px;
+    }
+
+    .action-description {
+      background: #f0f4ff;
+      border-left: 4px solid #667eea;
+      padding: 12px 16px;
+      margin-bottom: 16px;
+      font-size: 13px;
+      color: #444;
+      border-radius: 0 8px 8px 0;
+    }
+
+    .accounts-section {
+      margin-bottom: 16px;
+    }
+
+    .accounts-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #888;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .account-item {
+      display: flex;
+      align-items: center;
+      padding: 12px;
+      border: 2px solid #e9ecef;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .account-item:hover {
+      border-color: #667eea;
+      background: #f8f9ff;
+    }
+
+    .account-item.selected {
+      border-color: #667eea;
+      background: #f0f4ff;
+    }
+
+    .account-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .account-radio {
+      width: 18px;
+      height: 18px;
+      border: 2px solid #ccc;
+      border-radius: 50%;
+      margin-right: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .account-item.selected .account-radio {
+      border-color: #667eea;
+    }
+
+    .account-item.selected .account-radio::after {
+      content: '';
+      width: 10px;
+      height: 10px;
+      background: #667eea;
+      border-radius: 50%;
+    }
+
+    .account-icon {
+      font-size: 24px;
+      margin-right: 12px;
+    }
+
+    .account-info {
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .account-name {
+      font-weight: 500;
+      color: #333;
+      font-size: 14px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .account-detail {
+      font-size: 12px;
+      color: #888;
+    }
+
     .info-box {
       background: #f8f9fa;
       border-radius: 8px;
-      padding: 16px;
-      margin-bottom: 20px;
+      padding: 12px 16px;
+      margin-bottom: 16px;
     }
 
     .info-row {
       display: flex;
       justify-content: space-between;
-      margin-bottom: 8px;
-    }
-
-    .info-row:last-child {
-      margin-bottom: 0;
+      font-size: 13px;
     }
 
     .info-label {
       color: #666;
-      font-size: 13px;
     }
 
     .info-value {
       color: #333;
       font-weight: 500;
-      font-size: 13px;
-      max-width: 200px;
+      max-width: 220px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-    }
-
-    .warning {
-      background: #fff3cd;
-      border: 1px solid #ffc107;
-      border-radius: 8px;
-      padding: 12px;
-      margin-bottom: 20px;
-      font-size: 13px;
-      color: #856404;
     }
 
     .buttons {
@@ -139,28 +229,29 @@
       </div>
     </div>
 
-    <div class="info-box">
-      <div class="info-row">
-        <span class="info-label">Site</span>
-        <span class="info-value" id="site">-</span>
-      </div>
-      <div class="info-row">
-        <span class="info-label">Origin</span>
-        <span class="info-value" id="origin">-</span>
-      </div>
-      <div class="info-row" id="user-row" style="display: none;">
-        <span class="info-label">User</span>
-        <span class="info-value" id="user">-</span>
-      </div>
+    <div class="site-badge" id="site">-</div>
+
+    <div class="action-description" id="action-description">
+      This site wants to verify your identity.
     </div>
 
-    <div class="warning" id="warning">
-      This will create a new passkey for this site.
+    <!-- For authentication: show account selection -->
+    <div class="accounts-section" id="accounts-section" style="display: none;">
+      <div class="accounts-title">Select an account</div>
+      <div id="accounts-list"></div>
+    </div>
+
+    <!-- For registration: show user info -->
+    <div class="info-box" id="user-info" style="display: none;">
+      <div class="info-row">
+        <span class="info-label">Creating passkey for</span>
+        <span class="info-value" id="user-name">-</span>
+      </div>
     </div>
 
     <div class="buttons">
       <button class="btn btn-cancel" id="cancel-btn">Cancel</button>
-      <button class="btn btn-confirm" id="confirm-btn">Confirm</button>
+      <button class="btn btn-confirm" id="confirm-btn">Continue</button>
     </div>
   </div>
 

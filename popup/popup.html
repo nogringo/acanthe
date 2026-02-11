@@ -72,17 +72,18 @@
         <button id="settings-btn" class="btn-icon" title="Settings">⚙️</button>
       </div>
 
-      <!-- Current Site Section -->
-      <div id="current-site-section" class="section current-site-section hidden">
-        <div class="section-header">
-          <span class="section-icon">🌐</span>
-          <h3 id="current-site-name">Current Site</h3>
+      <!-- Scrollable Content -->
+      <div class="main-content">
+        <!-- Current Site Section -->
+        <div id="current-site-section" class="section current-site-section hidden">
+          <div class="section-header">
+            <span class="section-icon">🌐</span>
+            <h3 id="current-site-name">Current Site</h3>
+          </div>
+          <div id="current-site-passkeys" class="passkeys-grid"></div>
         </div>
-        <div id="current-site-passkeys" class="passkeys-grid"></div>
-      </div>
 
-      <!-- All Passkeys Section -->
-      <div class="section">
+        <!-- All Passkeys Section -->
         <div id="passkeys-list" class="passkeys-list">
           <div class="empty-state">
             <div class="empty-icon">🔑</div>
@@ -90,7 +91,7 @@
             <p>Visit a website that supports passkeys to create one.</p>
           </div>
         </div>
-      </div>
+      </div><!-- end main-content -->
     </div>
 
     <!-- Settings Screen -->

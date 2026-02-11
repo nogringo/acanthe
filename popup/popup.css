@@ -51,10 +51,24 @@ body {
   flex: 1;
   min-height: 0;
   padding: 16px;
-  padding-bottom: 0;
+  padding-bottom: 16px;
   animation: fadeIn 0.15s ease;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
+}
+
+#main-screen {
+  overflow-y: hidden;
+  padding-bottom: 0;
+}
+
+#main-screen .main-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 0 -16px;
+  padding: 0 16px;
 }
 
 @keyframes fadeIn {
@@ -360,9 +374,6 @@ body {
 /* Passkeys List */
 .passkeys-list {
   background: var(--bg-card);
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
   margin: 0 -16px;
   border-top: 1px solid var(--border);
 }
@@ -468,21 +479,15 @@ body {
   color: var(--text-muted);
 }
 
-/* Scrollbar */
-.passkeys-list::-webkit-scrollbar {
-  width: 6px;
+/* Hide scrollbar but keep scroll functionality */
+.screen::-webkit-scrollbar,
+.main-content::-webkit-scrollbar {
+  display: none;
 }
 
-.passkeys-list::-webkit-scrollbar-track {
-  background: var(--bg);
-}
-
-.passkeys-list::-webkit-scrollbar-thumb {
-  background: var(--border);
-}
-
-.passkeys-list::-webkit-scrollbar-thumb:hover {
-  background: var(--text-muted);
+.screen,
+.main-content {
+  scrollbar-width: none;
 }
 
 /* Site groups */

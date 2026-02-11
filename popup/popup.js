@@ -34,6 +34,12 @@ const unlockError = document.getElementById('unlock-error');
 const changePasswordError = document.getElementById('change-password-error');
 const changePasswordSuccess = document.getElementById('change-password-success');
 
+const modalOverlay = document.getElementById('modal-overlay');
+const modalIcon = document.getElementById('modal-icon');
+const modalTitle = document.getElementById('modal-title');
+const modalMessage = document.getElementById('modal-message');
+const modalActions = document.getElementById('modal-actions');
+
 let allPasskeys = [];
 let currentTabUrl = null;
 let previousScreen = 'main';
@@ -274,16 +280,24 @@ async function handleChangePassword(e) {
 
 // Handle reset
 async function handleReset() {
-  const confirmed = confirm(
-    'Are you sure you want to reset the extension?\n\n' +
-    'This will permanently delete ALL your passkeys and cannot be undone.'
+  const confirmed = await showConfirm(
+    '⚠️',
+    'Reset Extension?',
+    'This will permanently delete ALL your passkeys and cannot be undone.',
+    'Reset',
+    'Cancel',
+    true
   );
 
   if (!confirmed) return;
 
-  const doubleConfirm = confirm(
-    'This is your last chance to cancel.\n\n' +
-    'Type OK to confirm you want to delete all passkeys.'
+  const doubleConfirm = await showConfirm(
+    '🗑️',
+    'Last Chance',
+    'Are you absolutely sure? All passkeys will be permanently deleted.',
+    'Delete All',
+    'Cancel',
+    true
   );
 
   if (!doubleConfirm) return;
@@ -293,7 +307,7 @@ async function handleReset() {
   if (result.success) {
     showScreen('setup');
   } else {
-    alert('Failed to reset: ' + (result.error || 'Unknown error'));
+    await showAlert('❌', 'Reset Failed', result.error || 'Unknown error');
   }
 }
 
@@ -440,9 +454,16 @@ async function handleDelete(e) {
   e.stopPropagation();
   const credentialId = e.target.dataset.id;
 
-  if (!confirm('Delete this passkey? This cannot be undone.')) {
-    return;
-  }
+  const confirmed = await showConfirm(
+    '🗑️',
+    'Delete Passkey?',
+    'This passkey will be permanently deleted and cannot be recovered.',
+    'Delete',
+    'Cancel',
+    true
+  );
+
+  if (!confirmed) return;
 
   // Optimistic UI: remove from display immediately
   allPasskeys = allPasskeys.filter(pk => pk.credentialId !== credentialId);
@@ -454,7 +475,7 @@ async function handleDelete(e) {
 
   if (!result.success) {
     // Reload if failed
-    alert('Failed to delete passkey: ' + result.error);
+    await showAlert('❌', 'Delete Failed', result.error);
     loadPasskeys();
   }
 }
@@ -462,14 +483,14 @@ async function handleDelete(e) {
 // Handle export
 async function handleExport() {
   if (allPasskeys.length === 0) {
-    alert('No passkeys to export');
+    await showAlert('📭', 'Nothing to Export', 'You don\'t have any passkeys yet.');
     return;
   }
 
   const result = await sendMessage('exportPasskeysBitwarden');
 
   if (!result.success) {
-    alert('Export failed: ' + (result.error || 'Unknown error'));
+    await showAlert('❌', 'Export Failed', result.error || 'Unknown error');
     return;
   }
 
@@ -508,6 +529,48 @@ function showSuccess(element, message) {
 // Hide error/success message
 function hideError(element) {
   element.classList.add('hidden');
+}
+
+// Show modal alert (replaces alert())
+function showAlert(icon, title, message) {
+  return new Promise((resolve) => {
+    modalIcon.textContent = icon;
+    modalTitle.textContent = title;
+    modalMessage.textContent = message;
+    modalActions.innerHTML = '<button class="btn btn-primary" id="modal-ok">OK</button>';
+    modalOverlay.classList.remove('hidden');
+
+    document.getElementById('modal-ok').addEventListener('click', () => {
+      modalOverlay.classList.add('hidden');
+      resolve();
+    });
+  });
+}
+
+// Show modal confirm (replaces confirm())
+function showConfirm(icon, title, message, confirmText = 'Confirm', cancelText = 'Cancel', isDanger = false) {
+  return new Promise((resolve) => {
+    modalIcon.textContent = icon;
+    modalTitle.textContent = title;
+    modalMessage.textContent = message;
+
+    const btnClass = isDanger ? 'btn btn-danger' : 'btn btn-primary';
+    modalActions.innerHTML = `
+      <button class="btn btn-secondary" id="modal-cancel">${cancelText}</button>
+      <button class="${btnClass}" id="modal-confirm">${confirmText}</button>
+    `;
+    modalOverlay.classList.remove('hidden');
+
+    document.getElementById('modal-cancel').addEventListener('click', () => {
+      modalOverlay.classList.add('hidden');
+      resolve(false);
+    });
+
+    document.getElementById('modal-confirm').addEventListener('click', () => {
+      modalOverlay.classList.add('hidden');
+      resolve(true);
+    });
+  });
 }
 
 // Escape HTML to prevent XSS

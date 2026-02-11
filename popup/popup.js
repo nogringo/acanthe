@@ -444,12 +444,18 @@ async function handleDelete(e) {
     return;
   }
 
+  // Optimistic UI: remove from display immediately
+  allPasskeys = allPasskeys.filter(pk => pk.credentialId !== credentialId);
+  renderPasskeys(allPasskeys);
+  renderCurrentSitePasskeys();
+
+  // Then delete in background
   const result = await sendMessage('deletePasskey', { credentialId });
 
-  if (result.success) {
-    loadPasskeys();
-  } else {
+  if (!result.success) {
+    // Reload if failed
     alert('Failed to delete passkey: ' + result.error);
+    loadPasskeys();
   }
 }
 

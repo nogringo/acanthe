@@ -241,13 +241,13 @@
         console.log('[Passkey Extension] Returning credential:', credential);
         return credential;
       } else {
-        console.error('[Passkey Extension] Assertion failed:', response.error);
-        // Throw error instead of falling back
-        throw new DOMException(response.error || 'Assertion failed', 'NotAllowedError');
+        // No matching passkey - fall back to native WebAuthn
+        console.log('[Passkey Extension] No passkey found, falling back to native');
+        return originalGet(options);
       }
     } catch (error) {
       console.error('[Passkey Extension] Error:', error);
-      throw error;
+      return originalGet(options);
     }
   };
 

@@ -7,7 +7,11 @@
     "build": "node build.js",
     "watch": "node build.js --watch"
   },
-  "keywords": ["passkey", "webauthn", "chrome-extension"],
+  "keywords": [
+    "passkey",
+    "webauthn",
+    "chrome-extension"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {

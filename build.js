@@ -2,6 +2,7 @@ import * as esbuild from 'esbuild';
 import { cpSync, mkdirSync, rmSync } from 'fs';
 
 const isWatch = process.argv.includes('--watch');
+const isDebug = process.argv.includes('--debug');
 
 // Clean dist folder
 try {
@@ -35,8 +36,8 @@ const buildOptions = {
   bundle: true,
   format: 'esm',
   target: 'chrome100',
-  minify: !isWatch,
-  sourcemap: isWatch,
+  minify: !isWatch && !isDebug,
+  sourcemap: isWatch || isDebug,
 };
 
 // Build background script

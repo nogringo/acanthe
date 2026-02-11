@@ -723,3 +723,132 @@ body {
 .btn-secondary:hover {
   background: var(--border);
 }
+
+/* Sync Section */
+.sync-status {
+  padding: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.sync-status-text {
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.status-disabled {
+  background: #f1f5f9;
+  color: var(--text-muted);
+}
+
+.status-enabled {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.sync-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.sync-actions .btn {
+  flex: 1;
+  padding: 8px 12px;
+  font-size: 12px;
+}
+
+.sync-last-sync {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.sync-key-section {
+  margin-bottom: 12px;
+}
+
+.sync-key-section label {
+  display: block;
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.sync-key-wrapper {
+  display: flex;
+  gap: 4px;
+}
+
+.sync-key-input {
+  flex: 1;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-family: monospace;
+  background: var(--bg);
+}
+
+.sync-relays-section {
+  margin-bottom: 12px;
+}
+
+.sync-relays-section label {
+  display: block;
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.sync-relays-list {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px;
+  margin-bottom: 8px;
+  max-height: 80px;
+  overflow-y: auto;
+}
+
+.sync-relay-item {
+  font-size: 10px;
+  font-family: monospace;
+  color: var(--text-secondary);
+  padding: 2px 0;
+}
+
+.btn-small {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
+/* Modal form inputs */
+.input-full {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.input-full:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+textarea.input-full {
+  resize: vertical;
+  font-family: monospace;
+  font-size: 11px;
+}

@@ -40,9 +40,38 @@ const modalTitle = document.getElementById('modal-title');
 const modalMessage = document.getElementById('modal-message');
 const modalActions = document.getElementById('modal-actions');
 
+// Sync elements
+const syncDisabled = document.getElementById('sync-disabled');
+const syncEnabled = document.getElementById('sync-enabled');
+const createSyncBtn = document.getElementById('create-sync-btn');
+const joinSyncBtn = document.getElementById('join-sync-btn');
+const syncKeyDisplay = document.getElementById('sync-key-display');
+const toggleSyncKeyBtn = document.getElementById('toggle-sync-key');
+const copySyncKeyBtn = document.getElementById('copy-sync-key');
+const syncRelaysList = document.getElementById('sync-relays-list');
+const editRelaysBtn = document.getElementById('edit-relays-btn');
+const syncNowBtn = document.getElementById('sync-now-btn');
+const disableSyncBtn = document.getElementById('disable-sync-btn');
+const syncLastSync = document.getElementById('sync-last-sync');
+
+// Join sync modal
+const joinSyncModal = document.getElementById('join-sync-modal');
+const joinSyncNsec = document.getElementById('join-sync-nsec');
+const joinSyncCancel = document.getElementById('join-sync-cancel');
+const joinSyncConfirm = document.getElementById('join-sync-confirm');
+const joinSyncError = document.getElementById('join-sync-error');
+
+// Relays modal
+const relaysModal = document.getElementById('relays-modal');
+const relaysTextarea = document.getElementById('relays-textarea');
+const relaysCancel = document.getElementById('relays-cancel');
+const relaysSave = document.getElementById('relays-save');
+const relaysError = document.getElementById('relays-error');
+
 let allPasskeys = [];
 let currentTabUrl = null;
 let previousScreen = 'main';
+let currentSyncNsec = null;
 
 // Initialize popup
 async function init() {
@@ -95,6 +124,7 @@ function showScreen(screen) {
       break;
     case 'settings':
       settingsScreen.classList.remove('hidden');
+      loadSyncStatus();
       break;
     case 'change-password':
       changePasswordScreen.classList.remove('hidden');
@@ -137,6 +167,27 @@ function setupEventListeners() {
   });
   changePasswordBtn.addEventListener('click', () => showScreen('change-password'));
   resetBtn.addEventListener('click', handleReset);
+
+  // Sync actions
+  createSyncBtn.addEventListener('click', handleCreateSync);
+  joinSyncBtn.addEventListener('click', () => {
+    joinSyncNsec.value = '';
+    joinSyncError.classList.add('hidden');
+    joinSyncModal.classList.remove('hidden');
+  });
+  toggleSyncKeyBtn.addEventListener('click', toggleSyncKeyVisibility);
+  copySyncKeyBtn.addEventListener('click', copySyncKey);
+  editRelaysBtn.addEventListener('click', openRelaysModal);
+  syncNowBtn.addEventListener('click', handleSyncNow);
+  disableSyncBtn.addEventListener('click', handleDisableSync);
+
+  // Join sync modal
+  joinSyncCancel.addEventListener('click', () => joinSyncModal.classList.add('hidden'));
+  joinSyncConfirm.addEventListener('click', handleJoinSync);
+
+  // Relays modal
+  relaysCancel.addEventListener('click', () => relaysModal.classList.add('hidden'));
+  relaysSave.addEventListener('click', handleSaveRelays);
 }
 
 // Toggle password visibility
@@ -609,4 +660,224 @@ function formatDate(timestamp) {
     month: 'short',
     day: 'numeric'
   });
+}
+
+// ==================== SYNC FUNCTIONS ====================
+
+// Load and display sync status
+async function loadSyncStatus() {
+  const result = await sendMessage('getSyncStatus');
+
+  if (!result.success) {
+    return;
+  }
+
+  if (result.enabled) {
+    syncDisabled.classList.add('hidden');
+    syncEnabled.classList.remove('hidden');
+
+    // Load and display nsec
+    const keyResult = await sendMessage('getNostrKey');
+    if (keyResult.success) {
+      currentSyncNsec = keyResult.nsec;
+      syncKeyDisplay.value = keyResult.nsec;
+      syncKeyDisplay.type = 'password';
+    }
+
+    // Display relays
+    renderRelays(result.relays);
+
+    // Display last sync
+    if (result.lastSync > 0) {
+      syncLastSync.textContent = `Last sync: ${formatDate(result.lastSync * 1000)}`;
+    } else {
+      syncLastSync.textContent = 'Last sync: never';
+    }
+  } else {
+    syncDisabled.classList.remove('hidden');
+    syncEnabled.classList.add('hidden');
+    currentSyncNsec = null;
+  }
+}
+
+// Render relays list
+function renderRelays(relays) {
+  syncRelaysList.innerHTML = relays.map(relay =>
+    `<div class="sync-relay-item">${escapeHtml(relay)}</div>`
+  ).join('');
+}
+
+// Handle create sync
+async function handleCreateSync() {
+  const confirmed = await showConfirm(
+    '🔄',
+    'Create Sync?',
+    'This will generate a new sync key. Share this key with your other devices to sync passkeys.',
+    'Create',
+    'Cancel'
+  );
+
+  if (!confirmed) return;
+
+  createSyncBtn.disabled = true;
+  createSyncBtn.textContent = 'Creating...';
+
+  const result = await sendMessage('createSync');
+
+  createSyncBtn.disabled = false;
+  createSyncBtn.textContent = 'Create new sync';
+
+  if (result.success) {
+    loadSyncStatus();
+  } else {
+    await showAlert('❌', 'Failed', result.error || 'Failed to create sync');
+  }
+}
+
+// Handle join sync
+async function handleJoinSync() {
+  const nsec = joinSyncNsec.value.trim();
+
+  if (!nsec) {
+    joinSyncError.textContent = 'Please enter a sync key';
+    joinSyncError.classList.remove('hidden');
+    return;
+  }
+
+  if (!nsec.startsWith('nsec1')) {
+    joinSyncError.textContent = 'Invalid sync key format (should start with nsec1)';
+    joinSyncError.classList.remove('hidden');
+    return;
+  }
+
+  joinSyncConfirm.disabled = true;
+  joinSyncConfirm.textContent = 'Joining...';
+
+  const result = await sendMessage('joinSync', { nsec });
+
+  joinSyncConfirm.disabled = false;
+  joinSyncConfirm.textContent = 'Join';
+
+  if (result.success) {
+    joinSyncModal.classList.add('hidden');
+    await showAlert('✅', 'Sync Joined', 'Successfully joined sync. Your passkeys will now be synchronized.');
+    loadSyncStatus();
+    loadPasskeys();
+  } else {
+    joinSyncError.textContent = result.error || 'Failed to join sync';
+    joinSyncError.classList.remove('hidden');
+  }
+}
+
+// Toggle sync key visibility
+function toggleSyncKeyVisibility() {
+  if (syncKeyDisplay.type === 'password') {
+    syncKeyDisplay.type = 'text';
+    toggleSyncKeyBtn.textContent = '🙈';
+  } else {
+    syncKeyDisplay.type = 'password';
+    toggleSyncKeyBtn.textContent = '👁️';
+  }
+}
+
+// Copy sync key
+async function copySyncKey() {
+  if (currentSyncNsec) {
+    try {
+      await navigator.clipboard.writeText(currentSyncNsec);
+      copySyncKeyBtn.textContent = '✓';
+      setTimeout(() => {
+        copySyncKeyBtn.textContent = '📋';
+      }, 2000);
+    } catch (e) {
+      await showAlert('❌', 'Copy Failed', 'Failed to copy to clipboard');
+    }
+  }
+}
+
+// Open relays modal
+async function openRelaysModal() {
+  const result = await sendMessage('getSyncStatus');
+  if (result.success && result.relays) {
+    relaysTextarea.value = result.relays.join('\n');
+  }
+  relaysError.classList.add('hidden');
+  relaysModal.classList.remove('hidden');
+}
+
+// Handle save relays
+async function handleSaveRelays() {
+  const lines = relaysTextarea.value.split('\n').map(l => l.trim()).filter(l => l);
+
+  if (lines.length === 0) {
+    relaysError.textContent = 'Please enter at least one relay';
+    relaysError.classList.remove('hidden');
+    return;
+  }
+
+  // Validate relay URLs
+  for (const relay of lines) {
+    if (!relay.startsWith('wss://') && !relay.startsWith('ws://')) {
+      relaysError.textContent = `Invalid relay URL: ${relay}`;
+      relaysError.classList.remove('hidden');
+      return;
+    }
+  }
+
+  relaysSave.disabled = true;
+  relaysSave.textContent = 'Saving...';
+
+  const result = await sendMessage('updateRelays', { relays: lines });
+
+  relaysSave.disabled = false;
+  relaysSave.textContent = 'Save';
+
+  if (result.success) {
+    relaysModal.classList.add('hidden');
+    loadSyncStatus();
+  } else {
+    relaysError.textContent = result.error || 'Failed to save relays';
+    relaysError.classList.remove('hidden');
+  }
+}
+
+// Handle sync now
+async function handleSyncNow() {
+  syncNowBtn.disabled = true;
+  syncNowBtn.textContent = 'Syncing...';
+
+  const result = await sendMessage('syncNow');
+
+  syncNowBtn.disabled = false;
+  syncNowBtn.textContent = 'Sync now';
+
+  if (result.success) {
+    loadSyncStatus();
+    loadPasskeys();
+    await showAlert('✅', 'Sync Complete', `Synced ${result.merged} passkeys, published ${result.published} updates.`);
+  } else {
+    await showAlert('❌', 'Sync Failed', result.error || 'Unknown error');
+  }
+}
+
+// Handle disable sync
+async function handleDisableSync() {
+  const confirmed = await showConfirm(
+    '⚠️',
+    'Disable Sync?',
+    'Your passkeys will remain on this device, but will no longer sync with other devices. The sync key will be deleted.',
+    'Disable',
+    'Cancel',
+    true
+  );
+
+  if (!confirmed) return;
+
+  const result = await sendMessage('disableSync');
+
+  if (result.success) {
+    loadSyncStatus();
+  } else {
+    await showAlert('❌', 'Failed', result.error || 'Failed to disable sync');
+  }
 }

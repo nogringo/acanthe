@@ -14,9 +14,30 @@ import {
   pkcs8ToJwk
 } from './lib/crypto.js';
 
+import {
+  DEFAULT_RELAYS,
+  generateNostrKeyPair,
+  secretKeyToNsec,
+  nsecToSecretKey,
+  publicKeyToNpub,
+  getPublicKeyFromSecret,
+  closePool
+} from './lib/nostr.js';
+
+import {
+  fetchAndMergePasskeys,
+  publishPasskey,
+  publishPasskeys,
+  startSyncSubscription
+} from './lib/sync.js';
+
 // Session state
 let sessionKey = null;
 let isUnlocked = false;
+
+// Sync state
+let syncSubscription = null;
+let nostrSecretKey = null;
 
 // Pending confirmation requests
 const pendingConfirmations = new Map();
@@ -25,7 +46,12 @@ const pendingConfirmations = new Map();
 const STORAGE_KEYS = {
   MASTER_PASSWORD_HASH: 'masterPasswordHash',
   PASSKEYS: 'passkeys',
-  SALT: 'salt'
+  SALT: 'salt',
+  // Sync keys
+  SYNC_ENABLED: 'syncEnabled',
+  NOSTR_PRIVATE_KEY: 'nostrPrivateKey',
+  NOSTR_RELAYS: 'nostrRelays',
+  LAST_SYNC_TIMESTAMP: 'lastSyncTimestamp'
 };
 
 // Initialize extension
@@ -87,6 +113,28 @@ async function handleMessage(message, sender) {
 
     case 'importPasskeysBitwarden':
       return await importPasskeysBitwarden(data.jsonData);
+
+    // Sync actions
+    case 'createSync':
+      return await createSync();
+
+    case 'joinSync':
+      return await joinSync(data.nsec);
+
+    case 'disableSync':
+      return await disableSync();
+
+    case 'getSyncStatus':
+      return await getSyncStatus();
+
+    case 'getNostrKey':
+      return await getNostrKey();
+
+    case 'updateRelays':
+      return await updateRelays(data.relays);
+
+    case 'syncNow':
+      return await syncNow();
 
     default:
       return { success: false, error: 'Unknown action' };
@@ -355,6 +403,9 @@ async function unlock(password) {
     sessionKey = password;
     isUnlocked = true;
 
+    // Load sync state if enabled
+    await loadSyncState();
+
     return { success: true };
   } catch (error) {
     return { success: false, error: error.message };
@@ -365,6 +416,10 @@ async function unlock(password) {
 function lock() {
   sessionKey = null;
   isUnlocked = false;
+
+  syncSubscription = null;
+  nostrSecretKey = null;
+
   return { success: true };
 }
 
@@ -586,6 +641,15 @@ async function getAssertion(options, origin, selectedCredentialId = null) {
     const newEncrypted = await encrypt(passkeysUpdated, sessionKey);
     await chrome.storage.local.set({ [STORAGE_KEYS.PASSKEYS]: newEncrypted });
 
+    // Publish updated passkey to Nostr if sync is enabled
+    if (nostrSecretKey) {
+      const relaysResult = await chrome.storage.local.get(STORAGE_KEYS.NOSTR_RELAYS);
+      const relays = relaysResult[STORAGE_KEYS.NOSTR_RELAYS] || DEFAULT_RELAYS;
+      publishPasskey(passkey, nostrSecretKey, relays).catch(err => {
+        console.error('Failed to publish passkey update to Nostr:', err);
+      });
+    }
+
     return {
       success: true,
       credential: {
@@ -609,7 +673,10 @@ async function getAssertion(options, origin, selectedCredentialId = null) {
 
 // Store passkey
 async function storePasskey(passkey) {
-  const result = await chrome.storage.local.get(STORAGE_KEYS.PASSKEYS);
+  const result = await chrome.storage.local.get([
+    STORAGE_KEYS.PASSKEYS,
+    STORAGE_KEYS.NOSTR_RELAYS
+  ]);
   const encryptedData = result[STORAGE_KEYS.PASSKEYS];
 
   let passkeys = [];
@@ -622,6 +689,14 @@ async function storePasskey(passkey) {
 
   const newEncrypted = await encrypt(passkeys, sessionKey);
   await chrome.storage.local.set({ [STORAGE_KEYS.PASSKEYS]: newEncrypted });
+
+  // Publish to Nostr if sync is enabled
+  if (nostrSecretKey) {
+    const relays = result[STORAGE_KEYS.NOSTR_RELAYS] || DEFAULT_RELAYS;
+    publishPasskey(passkey, nostrSecretKey, relays).catch(err => {
+      console.error('Failed to publish passkey to Nostr:', err);
+    });
+  }
 }
 
 // Convert base64 to base64url
@@ -947,5 +1022,354 @@ async function importPasskeysBitwarden(jsonData) {
     };
   } catch (error) {
     return { success: false, error: error.message };
+  }
+}
+
+// ==================== SYNC FUNCTIONS ====================
+
+// Create a new sync (generate Nostr key)
+async function createSync() {
+  if (!isUnlocked) {
+    return { success: false, error: 'Extension is locked' };
+  }
+
+  try {
+    // Generate new Nostr key pair
+    const { secretKey, publicKey } = generateNostrKeyPair();
+    const nsec = secretKeyToNsec(secretKey);
+    const npub = publicKeyToNpub(publicKey);
+
+    // Store in local storage
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.SYNC_ENABLED]: true,
+      [STORAGE_KEYS.NOSTR_PRIVATE_KEY]: nsec,
+      [STORAGE_KEYS.NOSTR_RELAYS]: DEFAULT_RELAYS,
+      [STORAGE_KEYS.LAST_SYNC_TIMESTAMP]: 0
+    });
+
+    // Set session state
+    nostrSecretKey = secretKey;
+
+    // Start sync subscription
+    await initSyncSubscription();
+
+    // Publish existing passkeys to Nostr (in background, don't block)
+    publishExistingPasskeys().catch(err => {
+      console.error('Failed to publish existing passkeys:', err);
+    });
+
+    return { success: true, nsec, npub };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+// Join an existing sync (import Nostr key)
+async function joinSync(nsec) {
+  if (!isUnlocked) {
+    return { success: false, error: 'Extension is locked' };
+  }
+
+  try {
+    // Validate and decode nsec
+    const secretKey = nsecToSecretKey(nsec);
+    const publicKey = getPublicKeyFromSecret(secretKey);
+    const npub = publicKeyToNpub(publicKey);
+
+    // Store in local storage
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.SYNC_ENABLED]: true,
+      [STORAGE_KEYS.NOSTR_PRIVATE_KEY]: nsec,
+      [STORAGE_KEYS.NOSTR_RELAYS]: DEFAULT_RELAYS,
+      [STORAGE_KEYS.LAST_SYNC_TIMESTAMP]: 0
+    });
+
+    // Set session state
+    nostrSecretKey = secretKey;
+
+    // Start sync subscription
+    await initSyncSubscription();
+
+    // Fetch and merge passkeys from Nostr (in background, don't block)
+    syncNow().catch(err => {
+      console.error('Failed to sync passkeys:', err);
+    });
+
+    return { success: true, npub };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+// Disable sync
+async function disableSync() {
+  try {
+    syncSubscription = null;
+
+    // Close relay connections
+    closePool();
+
+    // Clear sync data
+    await chrome.storage.local.remove([
+      STORAGE_KEYS.SYNC_ENABLED,
+      STORAGE_KEYS.NOSTR_PRIVATE_KEY,
+      STORAGE_KEYS.NOSTR_RELAYS,
+      STORAGE_KEYS.LAST_SYNC_TIMESTAMP
+    ]);
+
+    nostrSecretKey = null;
+
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+// Get sync status
+async function getSyncStatus() {
+  try {
+    const result = await chrome.storage.local.get([
+      STORAGE_KEYS.SYNC_ENABLED,
+      STORAGE_KEYS.NOSTR_RELAYS,
+      STORAGE_KEYS.LAST_SYNC_TIMESTAMP
+    ]);
+
+    const enabled = result[STORAGE_KEYS.SYNC_ENABLED] || false;
+    let npub = null;
+
+    if (enabled && nostrSecretKey) {
+      const publicKey = getPublicKeyFromSecret(nostrSecretKey);
+      npub = publicKeyToNpub(publicKey);
+    }
+
+    return {
+      success: true,
+      enabled,
+      npub,
+      relays: result[STORAGE_KEYS.NOSTR_RELAYS] || DEFAULT_RELAYS,
+      lastSync: result[STORAGE_KEYS.LAST_SYNC_TIMESTAMP] || 0
+    };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+// Get Nostr key (nsec)
+async function getNostrKey() {
+  if (!isUnlocked) {
+    return { success: false, error: 'Extension is locked' };
+  }
+
+  try {
+    const result = await chrome.storage.local.get(STORAGE_KEYS.NOSTR_PRIVATE_KEY);
+    const nsec = result[STORAGE_KEYS.NOSTR_PRIVATE_KEY];
+
+    if (!nsec) {
+      return { success: false, error: 'Sync not enabled' };
+    }
+
+    return { success: true, nsec };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+// Update relays
+async function updateRelays(relays) {
+  if (!Array.isArray(relays) || relays.length === 0) {
+    return { success: false, error: 'Invalid relays' };
+  }
+
+  try {
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.NOSTR_RELAYS]: relays
+    });
+
+    // Reinitialize subscription with new relays
+    if (nostrSecretKey) {
+      await initSyncSubscription();
+    }
+
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+// Manual sync trigger
+async function syncNow() {
+  if (!isUnlocked) {
+    return { success: false, error: 'Extension is locked' };
+  }
+
+  if (!nostrSecretKey) {
+    return { success: false, error: 'Sync not enabled' };
+  }
+
+  try {
+    const result = await chrome.storage.local.get([
+      STORAGE_KEYS.PASSKEYS,
+      STORAGE_KEYS.NOSTR_RELAYS,
+      STORAGE_KEYS.LAST_SYNC_TIMESTAMP
+    ]);
+
+    const relays = result[STORAGE_KEYS.NOSTR_RELAYS] || DEFAULT_RELAYS;
+    const lastSync = result[STORAGE_KEYS.LAST_SYNC_TIMESTAMP] || 0;
+
+    // Get local passkeys
+    const encryptedData = result[STORAGE_KEYS.PASSKEYS];
+    let localPasskeys = [];
+    if (encryptedData && encryptedData.data) {
+      localPasskeys = await decrypt(encryptedData, sessionKey);
+    }
+
+    // Fetch and merge from Nostr
+    const publicKey = getPublicKeyFromSecret(nostrSecretKey);
+    const syncResult = await fetchAndMergePasskeys(
+      nostrSecretKey,
+      publicKey,
+      localPasskeys,
+      relays,
+      lastSync
+    );
+
+    // Save merged passkeys locally
+    const newEncrypted = await encrypt(syncResult.mergedPasskeys, sessionKey);
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.PASSKEYS]: newEncrypted,
+      [STORAGE_KEYS.LAST_SYNC_TIMESTAMP]: Math.floor(Date.now() / 1000)
+    });
+
+    // Publish local passkeys that weren't on Nostr
+    if (syncResult.toPublish.length > 0) {
+      await publishPasskeys(syncResult.toPublish, nostrSecretKey, relays);
+    }
+
+    return {
+      success: true,
+      merged: syncResult.mergedPasskeys.length,
+      published: syncResult.toPublish.length
+    };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+// Initialize sync subscription for real-time updates
+async function initSyncSubscription() {
+  syncSubscription = null;
+
+  if (!nostrSecretKey) {
+    return;
+  }
+
+  try {
+    const result = await chrome.storage.local.get(STORAGE_KEYS.NOSTR_RELAYS);
+    const relays = result[STORAGE_KEYS.NOSTR_RELAYS] || DEFAULT_RELAYS;
+    const publicKey = getPublicKeyFromSecret(nostrSecretKey);
+
+    syncSubscription = startSyncSubscription(
+      nostrSecretKey,
+      publicKey,
+      relays,
+      // On passkey received
+      async (parsed) => {
+        await handleRemotePasskey(parsed.passkey);
+      },
+      // On deletion received
+      async (eventId) => {
+        // For now, we don't handle remote deletions automatically
+        // User must delete locally themselves
+        console.log('Remote deletion event:', eventId);
+      }
+    );
+  } catch (error) {
+    console.error('Failed to initialize sync subscription:', error);
+  }
+}
+
+// Handle a passkey received from Nostr
+async function handleRemotePasskey(remotePasskey) {
+  if (!isUnlocked || !sessionKey) {
+    return;
+  }
+
+  try {
+    const result = await chrome.storage.local.get(STORAGE_KEYS.PASSKEYS);
+    const encryptedData = result[STORAGE_KEYS.PASSKEYS];
+
+    let passkeys = [];
+    if (encryptedData && encryptedData.data) {
+      passkeys = await decrypt(encryptedData, sessionKey);
+    }
+
+    // Find existing passkey with same credentialId
+    const existingIndex = passkeys.findIndex(
+      pk => pk.credentialId === remotePasskey.credentialId
+    );
+
+    if (existingIndex === -1) {
+      // New passkey - add it
+      passkeys.push(remotePasskey);
+    } else {
+      // Existing passkey - merge (keep highest signCount)
+      const existing = passkeys[existingIndex];
+      if (remotePasskey.signCount > existing.signCount) {
+        passkeys[existingIndex] = {
+          ...existing,
+          ...remotePasskey,
+          signCount: remotePasskey.signCount
+        };
+      }
+    }
+
+    // Save updated passkeys
+    const newEncrypted = await encrypt(passkeys, sessionKey);
+    await chrome.storage.local.set({ [STORAGE_KEYS.PASSKEYS]: newEncrypted });
+  } catch (error) {
+    console.error('Failed to handle remote passkey:', error);
+  }
+}
+
+// Publish existing passkeys to Nostr (used when creating sync)
+async function publishExistingPasskeys() {
+  if (!nostrSecretKey || !sessionKey) {
+    return;
+  }
+
+  try {
+    const result = await chrome.storage.local.get([
+      STORAGE_KEYS.PASSKEYS,
+      STORAGE_KEYS.NOSTR_RELAYS
+    ]);
+
+    const encryptedData = result[STORAGE_KEYS.PASSKEYS];
+    const relays = result[STORAGE_KEYS.NOSTR_RELAYS] || DEFAULT_RELAYS;
+
+    if (!encryptedData || !encryptedData.data) {
+      return;
+    }
+
+    const passkeys = await decrypt(encryptedData, sessionKey);
+    await publishPasskeys(passkeys, nostrSecretKey, relays);
+  } catch (error) {
+    console.error('Failed to publish existing passkeys:', error);
+  }
+}
+
+// Load sync state on unlock
+async function loadSyncState() {
+  try {
+    const result = await chrome.storage.local.get([
+      STORAGE_KEYS.SYNC_ENABLED,
+      STORAGE_KEYS.NOSTR_PRIVATE_KEY
+    ]);
+
+    if (result[STORAGE_KEYS.SYNC_ENABLED] && result[STORAGE_KEYS.NOSTR_PRIVATE_KEY]) {
+      nostrSecretKey = nsecToSecretKey(result[STORAGE_KEYS.NOSTR_PRIVATE_KEY]);
+      await initSyncSubscription();
+    }
+  } catch (error) {
+    console.error('Failed to load sync state:', error);
   }
 }

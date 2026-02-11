@@ -123,6 +123,38 @@
         </div>
 
         <div class="settings-section">
+          <h3>Synchronisation</h3>
+          <div id="sync-disabled" class="sync-status">
+            <p class="sync-status-text">Status: <span class="status-badge status-disabled">Disabled</span></p>
+            <div class="sync-actions">
+              <button id="create-sync-btn" class="btn btn-primary">Create new sync</button>
+              <button id="join-sync-btn" class="btn btn-secondary">Join existing sync</button>
+            </div>
+          </div>
+          <div id="sync-enabled" class="sync-status hidden">
+            <p class="sync-status-text">Status: <span class="status-badge status-enabled">Enabled</span></p>
+            <p class="sync-last-sync" id="sync-last-sync">Last sync: never</p>
+            <div class="sync-key-section">
+              <label>Sync key (nsec):</label>
+              <div class="sync-key-wrapper">
+                <input type="password" id="sync-key-display" readonly class="sync-key-input">
+                <button id="toggle-sync-key" class="btn-icon" title="Show/Hide">👁️</button>
+                <button id="copy-sync-key" class="btn-icon" title="Copy">📋</button>
+              </div>
+            </div>
+            <div class="sync-relays-section">
+              <label>Relays:</label>
+              <div id="sync-relays-list" class="sync-relays-list"></div>
+              <button id="edit-relays-btn" class="btn btn-small">Configure relays</button>
+            </div>
+            <div class="sync-actions">
+              <button id="sync-now-btn" class="btn btn-secondary">Sync now</button>
+              <button id="disable-sync-btn" class="btn btn-danger">Disable sync</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-section">
           <h3>Security</h3>
           <button id="change-password-btn" class="settings-item">
             <span class="settings-item-icon">🔑</span>
@@ -203,6 +235,38 @@
       <h3 class="modal-title" id="modal-title"></h3>
       <p class="modal-message" id="modal-message"></p>
       <div class="modal-actions" id="modal-actions"></div>
+    </div>
+  </div>
+
+  <!-- Join Sync Modal -->
+  <div id="join-sync-modal" class="modal-overlay hidden">
+    <div class="modal">
+      <h3 class="modal-title">Join existing sync</h3>
+      <p class="modal-message">Paste the sync key (nsec) from another device:</p>
+      <div class="form-group">
+        <input type="text" id="join-sync-nsec" placeholder="nsec1..." class="input-full">
+      </div>
+      <div id="join-sync-error" class="error hidden"></div>
+      <div class="modal-actions">
+        <button id="join-sync-cancel" class="btn btn-secondary">Cancel</button>
+        <button id="join-sync-confirm" class="btn btn-primary">Join</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Relays Modal -->
+  <div id="relays-modal" class="modal-overlay hidden">
+    <div class="modal">
+      <h3 class="modal-title">Configure relays</h3>
+      <p class="modal-message">Enter relay URLs (one per line):</p>
+      <div class="form-group">
+        <textarea id="relays-textarea" rows="5" class="input-full"></textarea>
+      </div>
+      <div id="relays-error" class="error hidden"></div>
+      <div class="modal-actions">
+        <button id="relays-cancel" class="btn btn-secondary">Cancel</button>
+        <button id="relays-save" class="btn btn-primary">Save</button>
+      </div>
     </div>
   </div>
 

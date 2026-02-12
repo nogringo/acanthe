@@ -816,8 +816,6 @@ body {
   border-radius: var(--radius-sm);
   padding: 8px;
   margin-bottom: 8px;
-  max-height: 80px;
-  overflow-y: auto;
 }
 
 .sync-relay-item {
@@ -851,4 +849,152 @@ textarea.input-full {
   resize: vertical;
   font-family: monospace;
   font-size: 11px;
+}
+
+/* Relays Modal - Enhanced */
+.modal-relays {
+  width: 300px;
+  text-align: left;
+}
+
+.relays-edit-list {
+  max-height: 150px;
+  overflow-y: auto;
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.relays-edit-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.relays-edit-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.relays-edit-list::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+.relays-edit-list::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+.relay-edit-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  gap: 8px;
+}
+
+.relay-edit-item:last-child {
+  border-bottom: none;
+}
+
+.relay-edit-url {
+  flex: 1;
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.relay-delete-btn {
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+
+.relay-delete-btn:hover {
+  background: #fef2f2;
+  color: var(--danger);
+}
+
+.relays-empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.relay-add-section {
+  margin-bottom: 12px;
+}
+
+.relay-add-input-wrapper {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.relay-add-input {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-family: monospace;
+}
+
+.relay-add-input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.btn-add-relay {
+  padding: 8px 12px;
+  font-size: 12px;
+}
+
+.relay-suggestions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.relay-suggestions-label {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.relay-suggestion {
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-card);
+  font-size: 10px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.relay-suggestion:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.relay-suggestion.added {
+  background: #f0fdf4;
+  border-color: var(--success);
+  color: var(--success);
+  cursor: default;
 }

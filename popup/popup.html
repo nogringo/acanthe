@@ -256,16 +256,24 @@
 
   <!-- Relays Modal -->
   <div id="relays-modal" class="modal-overlay hidden">
-    <div class="modal">
+    <div class="modal modal-relays">
       <h3 class="modal-title">Configure relays</h3>
-      <p class="modal-message">Enter relay URLs (one per line):</p>
-      <div class="form-group">
-        <textarea id="relays-textarea" rows="5" class="input-full"></textarea>
+      <div class="relays-edit-list" id="relays-edit-list"></div>
+      <div class="relay-add-section">
+        <div class="relay-add-input-wrapper">
+          <input type="text" id="relay-add-input" placeholder="wss://relay.example.com" class="relay-add-input">
+          <button id="relay-add-btn" class="btn btn-primary btn-add-relay">Add</button>
+        </div>
+        <div class="relay-suggestions">
+          <span class="relay-suggestions-label">Popular:</span>
+          <button class="relay-suggestion" data-relay="wss://relay.damus.io">damus.io</button>
+          <button class="relay-suggestion" data-relay="wss://relay.primal.net">primal.net</button>
+          <button class="relay-suggestion" data-relay="wss://nos.lol">nos.lol</button>
+        </div>
       </div>
       <div id="relays-error" class="error hidden"></div>
       <div class="modal-actions">
-        <button id="relays-cancel" class="btn btn-secondary">Cancel</button>
-        <button id="relays-save" class="btn btn-primary">Save</button>
+        <button id="relays-cancel" class="btn btn-secondary">Close</button>
       </div>
     </div>
   </div>

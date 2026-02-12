@@ -63,10 +63,13 @@ const joinSyncError = document.getElementById('join-sync-error');
 
 // Relays modal
 const relaysModal = document.getElementById('relays-modal');
-const relaysTextarea = document.getElementById('relays-textarea');
+const relaysEditList = document.getElementById('relays-edit-list');
+const relayAddInput = document.getElementById('relay-add-input');
+const relayAddBtn = document.getElementById('relay-add-btn');
 const relaysCancel = document.getElementById('relays-cancel');
-const relaysSave = document.getElementById('relays-save');
 const relaysError = document.getElementById('relays-error');
+
+let currentRelays = [];
 
 let allPasskeys = [];
 let currentTabUrl = null;
@@ -187,7 +190,20 @@ function setupEventListeners() {
 
   // Relays modal
   relaysCancel.addEventListener('click', () => relaysModal.classList.add('hidden'));
-  relaysSave.addEventListener('click', handleSaveRelays);
+  relayAddBtn.addEventListener('click', handleAddRelay);
+  relayAddInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') handleAddRelay();
+  });
+
+  // Relay suggestions
+  document.querySelectorAll('.relay-suggestion').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const relay = btn.dataset.relay;
+      if (!currentRelays.includes(relay)) {
+        addRelay(relay);
+      }
+    });
+  });
 }
 
 // Toggle password visibility
@@ -799,41 +815,103 @@ async function copySyncKey() {
 async function openRelaysModal() {
   const result = await sendMessage('getSyncStatus');
   if (result.success && result.relays) {
-    relaysTextarea.value = result.relays.join('\n');
+    currentRelays = [...result.relays];
+  } else {
+    currentRelays = [];
   }
   relaysError.classList.add('hidden');
+  relayAddInput.value = '';
+  renderRelaysEditList();
+  updateRelaySuggestions();
   relaysModal.classList.remove('hidden');
 }
 
-// Handle save relays
-async function handleSaveRelays() {
-  const lines = relaysTextarea.value.split('\n').map(l => l.trim()).filter(l => l);
+// Render relays edit list
+function renderRelaysEditList() {
+  if (currentRelays.length === 0) {
+    relaysEditList.innerHTML = '<div class="relays-empty">No relays configured</div>';
+    return;
+  }
 
-  if (lines.length === 0) {
-    relaysError.textContent = 'Please enter at least one relay';
+  relaysEditList.innerHTML = currentRelays.map(relay => `
+    <div class="relay-edit-item" data-relay="${escapeHtml(relay)}">
+      <span class="relay-edit-url" title="${escapeHtml(relay)}">${escapeHtml(relay)}</span>
+      <button class="relay-delete-btn" data-relay="${escapeHtml(relay)}" title="Remove">×</button>
+    </div>
+  `).join('');
+
+  // Add delete handlers
+  relaysEditList.querySelectorAll('.relay-delete-btn').forEach(btn => {
+    btn.addEventListener('click', () => removeRelay(btn.dataset.relay));
+  });
+}
+
+// Update relay suggestion buttons state
+function updateRelaySuggestions() {
+  document.querySelectorAll('.relay-suggestion').forEach(btn => {
+    const relay = btn.dataset.relay;
+    if (currentRelays.includes(relay)) {
+      btn.classList.add('added');
+    } else {
+      btn.classList.remove('added');
+    }
+  });
+}
+
+// Handle add relay from input
+function handleAddRelay() {
+  const relay = relayAddInput.value.trim();
+
+  if (!relay) {
+    return;
+  }
+
+  if (!relay.startsWith('wss://') && !relay.startsWith('ws://')) {
+    relaysError.textContent = 'URL must start with wss:// or ws://';
     relaysError.classList.remove('hidden');
     return;
   }
 
-  // Validate relay URLs
-  for (const relay of lines) {
-    if (!relay.startsWith('wss://') && !relay.startsWith('ws://')) {
-      relaysError.textContent = `Invalid relay URL: ${relay}`;
-      relaysError.classList.remove('hidden');
-      return;
-    }
+  if (currentRelays.includes(relay)) {
+    relaysError.textContent = 'This relay is already added';
+    relaysError.classList.remove('hidden');
+    return;
   }
 
-  relaysSave.disabled = true;
-  relaysSave.textContent = 'Saving...';
+  relaysError.classList.add('hidden');
+  addRelay(relay);
+  relayAddInput.value = '';
+  relayAddInput.focus();
+}
 
-  const result = await sendMessage('updateRelays', { relays: lines });
+// Add a relay
+async function addRelay(relay) {
+  currentRelays.push(relay);
+  renderRelaysEditList();
+  updateRelaySuggestions();
+  await saveRelays();
+}
 
-  relaysSave.disabled = false;
-  relaysSave.textContent = 'Save';
+// Remove a relay
+async function removeRelay(relay) {
+  if (currentRelays.length <= 1) {
+    relaysError.textContent = 'You need at least one relay';
+    relaysError.classList.remove('hidden');
+    return;
+  }
+
+  currentRelays = currentRelays.filter(r => r !== relay);
+  renderRelaysEditList();
+  updateRelaySuggestions();
+  relaysError.classList.add('hidden');
+  await saveRelays();
+}
+
+// Save relays to storage
+async function saveRelays() {
+  const result = await sendMessage('updateRelays', { relays: currentRelays });
 
   if (result.success) {
-    relaysModal.classList.add('hidden');
     loadSyncStatus();
   } else {
     relaysError.textContent = result.error || 'Failed to save relays';

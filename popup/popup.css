@@ -423,6 +423,17 @@ body {
   font-weight: 600;
   margin-right: 10px;
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.passkey-avatar.has-favicon {
+  background: transparent;
+}
+
+.passkey-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .passkey-info {

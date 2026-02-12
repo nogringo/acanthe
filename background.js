@@ -31,6 +31,12 @@ import {
   startSyncSubscription
 } from './lib/sync.js';
 
+import {
+  DEFAULT_BLOSSOM_SERVERS,
+  getOrUploadFavicon,
+  getFaviconUrl
+} from './lib/blossom.js';
+
 // Session state
 let sessionKey = null;
 let isUnlocked = false;
@@ -51,6 +57,7 @@ const STORAGE_KEYS = {
   SYNC_ENABLED: 'syncEnabled',
   NOSTR_PRIVATE_KEY: 'nostrPrivateKey',
   NOSTR_RELAYS: 'nostrRelays',
+  BLOSSOM_SERVERS: 'blossomServers',
   LAST_SYNC_TIMESTAMP: 'lastSyncTimestamp'
 };
 
@@ -132,6 +139,15 @@ async function handleMessage(message, sender) {
 
     case 'updateRelays':
       return await updateRelays(data.relays);
+
+    case 'updateBlossomServers':
+      return await updateBlossomServers(data.servers);
+
+    case 'fetchPasskeyFavicon':
+      return await fetchPasskeyFavicon(data.credentialId);
+
+    case 'getPasskeyFaviconUrl':
+      return await getPasskeyFaviconUrl(data.hash);
 
     case 'syncNow':
       return await syncNow();
@@ -430,11 +446,15 @@ async function getPasskeys() {
   }
 
   try {
-    const result = await chrome.storage.local.get(STORAGE_KEYS.PASSKEYS);
+    const result = await chrome.storage.local.get([
+      STORAGE_KEYS.PASSKEYS,
+      STORAGE_KEYS.BLOSSOM_SERVERS
+    ]);
     const encryptedData = result[STORAGE_KEYS.PASSKEYS];
+    const blossomServers = result[STORAGE_KEYS.BLOSSOM_SERVERS] || DEFAULT_BLOSSOM_SERVERS;
 
     if (!encryptedData || !encryptedData.data) {
-      return { success: true, passkeys: [] };
+      return { success: true, passkeys: [], blossomServers };
     }
 
     const passkeys = await decrypt(encryptedData, sessionKey);
@@ -446,10 +466,11 @@ async function getPasskeys() {
       rpName: pk.rpName,
       userName: pk.userName,
       userDisplayName: pk.userDisplayName,
-      createdAt: pk.createdAt
+      createdAt: pk.createdAt,
+      faviconHash: pk.faviconHash || null
     }));
 
-    return { success: true, passkeys: metadata };
+    return { success: true, passkeys: metadata, blossomServers };
   } catch (error) {
     if (error.message.includes('Decryption failed')) {
       return { success: true, passkeys: [] };
@@ -645,9 +666,7 @@ async function getAssertion(options, origin, selectedCredentialId = null) {
     if (nostrSecretKey) {
       const relaysResult = await chrome.storage.local.get(STORAGE_KEYS.NOSTR_RELAYS);
       const relays = relaysResult[STORAGE_KEYS.NOSTR_RELAYS] || DEFAULT_RELAYS;
-      publishPasskey(passkey, nostrSecretKey, relays).catch(err => {
-        console.error('Failed to publish passkey update to Nostr:', err);
-      });
+      publishPasskey(passkey, nostrSecretKey, relays).catch(() => {});
     }
 
     return {
@@ -693,9 +712,7 @@ async function storePasskey(passkey) {
   // Publish to Nostr if sync is enabled
   if (nostrSecretKey) {
     const relays = result[STORAGE_KEYS.NOSTR_RELAYS] || DEFAULT_RELAYS;
-    publishPasskey(passkey, nostrSecretKey, relays).catch(err => {
-      console.error('Failed to publish passkey to Nostr:', err);
-    });
+    publishPasskey(passkey, nostrSecretKey, relays).catch(() => {});
   }
 }
 
@@ -1054,9 +1071,7 @@ async function createSync() {
     await initSyncSubscription();
 
     // Publish existing passkeys to Nostr (in background, don't block)
-    publishExistingPasskeys().catch(err => {
-      console.error('Failed to publish existing passkeys:', err);
-    });
+    publishExistingPasskeys().catch(() => {});
 
     return { success: true, nsec, npub };
   } catch (error) {
@@ -1091,9 +1106,7 @@ async function joinSync(nsec) {
     await initSyncSubscription();
 
     // Fetch and merge passkeys from Nostr (in background, don't block)
-    syncNow().catch(err => {
-      console.error('Failed to sync passkeys:', err);
-    });
+    syncNow().catch(() => {});
 
     return { success: true, npub };
   } catch (error) {
@@ -1131,6 +1144,7 @@ async function getSyncStatus() {
     const result = await chrome.storage.local.get([
       STORAGE_KEYS.SYNC_ENABLED,
       STORAGE_KEYS.NOSTR_RELAYS,
+      STORAGE_KEYS.BLOSSOM_SERVERS,
       STORAGE_KEYS.LAST_SYNC_TIMESTAMP
     ]);
 
@@ -1147,6 +1161,7 @@ async function getSyncStatus() {
       enabled,
       npub,
       relays: result[STORAGE_KEYS.NOSTR_RELAYS] || DEFAULT_RELAYS,
+      blossomServers: result[STORAGE_KEYS.BLOSSOM_SERVERS] || DEFAULT_BLOSSOM_SERVERS,
       lastSync: result[STORAGE_KEYS.LAST_SYNC_TIMESTAMP] || 0
     };
   } catch (error) {
@@ -1194,6 +1209,86 @@ async function updateRelays(relays) {
   } catch (error) {
     return { success: false, error: error.message };
   }
+}
+
+// Update Blossom servers
+async function updateBlossomServers(servers) {
+  if (!Array.isArray(servers) || servers.length === 0) {
+    return { success: false, error: 'Invalid servers' };
+  }
+
+  try {
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.BLOSSOM_SERVERS]: servers
+    });
+
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+// Fetch and upload favicon for a passkey
+async function fetchPasskeyFavicon(credentialId) {
+  if (!isUnlocked || !sessionKey) {
+    return { success: false, error: 'Extension is locked' };
+  }
+
+  try {
+    // Get passkeys and config
+    const result = await chrome.storage.local.get([
+      STORAGE_KEYS.PASSKEYS,
+      STORAGE_KEYS.BLOSSOM_SERVERS,
+      STORAGE_KEYS.NOSTR_PRIVATE_KEY
+    ]);
+    const encryptedData = result[STORAGE_KEYS.PASSKEYS];
+    const blossomServers = result[STORAGE_KEYS.BLOSSOM_SERVERS] || DEFAULT_BLOSSOM_SERVERS;
+
+    // Use existing nostr key or generate a temporary one for Blossom
+    let signingKey = nostrSecretKey;
+    if (!signingKey) {
+      const { secretKey } = generateNostrKeyPair();
+      signingKey = secretKey;
+    }
+
+    if (!encryptedData || !encryptedData.data) {
+      return { success: false, error: 'No passkeys found' };
+    }
+
+    const passkeys = await decrypt(encryptedData, sessionKey);
+    const passkey = passkeys.find(p => p.credentialId === credentialId);
+
+    if (!passkey) {
+      return { success: false, error: 'Passkey not found' };
+    }
+
+    if (passkey.faviconHash) {
+      return { success: true, hash: passkey.faviconHash, alreadyExists: true };
+    }
+
+    // Fetch and upload favicon
+    const faviconResult = await getOrUploadFavicon(passkey.rpId, signingKey, blossomServers);
+
+    if (!faviconResult) {
+      return { success: false, error: 'Failed to fetch or upload favicon' };
+    }
+
+    // Update passkey with favicon hash
+    passkey.faviconHash = faviconResult.hash;
+    const newEncrypted = await encrypt(passkeys, sessionKey);
+    await chrome.storage.local.set({ [STORAGE_KEYS.PASSKEYS]: newEncrypted });
+
+    return { success: true, hash: faviconResult.hash };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+// Get favicon URL for display
+async function getPasskeyFaviconUrl(hash) {
+  const result = await chrome.storage.local.get(STORAGE_KEYS.BLOSSOM_SERVERS);
+  const servers = result[STORAGE_KEYS.BLOSSOM_SERVERS] || DEFAULT_BLOSSOM_SERVERS;
+  return { success: true, url: getFaviconUrl(hash, servers) };
 }
 
 // Manual sync trigger
@@ -1277,14 +1372,13 @@ async function initSyncSubscription() {
         await handleRemotePasskey(parsed.passkey);
       },
       // On deletion received
-      async (eventId) => {
+      async () => {
         // For now, we don't handle remote deletions automatically
         // User must delete locally themselves
-        console.log('Remote deletion event:', eventId);
       }
     );
-  } catch (error) {
-    console.error('Failed to initialize sync subscription:', error);
+  } catch {
+    // Failed to initialize sync subscription
   }
 }
 
@@ -1326,8 +1420,8 @@ async function handleRemotePasskey(remotePasskey) {
     // Save updated passkeys
     const newEncrypted = await encrypt(passkeys, sessionKey);
     await chrome.storage.local.set({ [STORAGE_KEYS.PASSKEYS]: newEncrypted });
-  } catch (error) {
-    console.error('Failed to handle remote passkey:', error);
+  } catch {
+    // Failed to handle remote passkey
   }
 }
 
@@ -1352,8 +1446,8 @@ async function publishExistingPasskeys() {
 
     const passkeys = await decrypt(encryptedData, sessionKey);
     await publishPasskeys(passkeys, nostrSecretKey, relays);
-  } catch (error) {
-    console.error('Failed to publish existing passkeys:', error);
+  } catch {
+    // Failed to publish existing passkeys
   }
 }
 
@@ -1369,7 +1463,7 @@ async function loadSyncState() {
       nostrSecretKey = nsecToSecretKey(result[STORAGE_KEYS.NOSTR_PRIVATE_KEY]);
       await initSyncSubscription();
     }
-  } catch (error) {
-    console.error('Failed to load sync state:', error);
+  } catch {
+    // Failed to load sync state
   }
 }

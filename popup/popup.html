@@ -120,6 +120,14 @@
             </div>
             <span class="settings-item-arrow">›</span>
           </button>
+          <button id="fetch-favicons-btn" class="settings-item">
+            <span class="settings-item-icon">🖼️</span>
+            <div class="settings-item-content">
+              <span class="settings-item-title">Fetch favicons</span>
+              <span class="settings-item-desc">Download site icons via Blossom</span>
+            </div>
+            <span class="settings-item-arrow">›</span>
+          </button>
         </div>
 
         <div class="settings-section">
@@ -146,6 +154,11 @@
               <label>Relays:</label>
               <div id="sync-relays-list" class="sync-relays-list"></div>
               <button id="edit-relays-btn" class="btn btn-small">Configure relays</button>
+            </div>
+            <div class="sync-relays-section">
+              <label>Blossom servers (favicons):</label>
+              <div id="blossom-servers-list" class="sync-relays-list"></div>
+              <button id="edit-blossom-btn" class="btn btn-small">Configure servers</button>
             </div>
             <div class="sync-actions">
               <button id="sync-now-btn" class="btn btn-secondary">Sync now</button>
@@ -274,6 +287,30 @@
       <div id="relays-error" class="error hidden"></div>
       <div class="modal-actions">
         <button id="relays-cancel" class="btn btn-secondary">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Blossom Modal -->
+  <div id="blossom-modal" class="modal-overlay hidden">
+    <div class="modal modal-relays">
+      <h3 class="modal-title">Configure Blossom servers</h3>
+      <div class="relays-edit-list" id="blossom-edit-list"></div>
+      <div class="relay-add-section">
+        <div class="relay-add-input-wrapper">
+          <input type="text" id="blossom-add-input" placeholder="https://blossom.example.com" class="relay-add-input">
+          <button id="blossom-add-btn" class="btn btn-primary btn-add-relay">Add</button>
+        </div>
+        <div class="relay-suggestions">
+          <span class="relay-suggestions-label">Popular:</span>
+          <button class="relay-suggestion blossom-suggestion" data-server="https://blossom.primal.net">primal.net</button>
+          <button class="relay-suggestion blossom-suggestion" data-server="https://blossom.yakihonne.com">yakihonne</button>
+          <button class="relay-suggestion blossom-suggestion" data-server="https://blossom-01.uid.ovh">uid.ovh</button>
+        </div>
+      </div>
+      <div id="blossom-error" class="error hidden"></div>
+      <div class="modal-actions">
+        <button id="blossom-cancel" class="btn btn-secondary">Close</button>
       </div>
     </div>
   </div>

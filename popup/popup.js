@@ -19,6 +19,7 @@ const backBtn = document.getElementById('back-btn');
 const backFromPasswordBtn = document.getElementById('back-from-password-btn');
 const exportBtn = document.getElementById('export-btn');
 const importBtn = document.getElementById('import-btn');
+const fetchFaviconsBtn = document.getElementById('fetch-favicons-btn');
 const changePasswordBtn = document.getElementById('change-password-btn');
 const resetBtn = document.getElementById('reset-btn');
 
@@ -69,9 +70,21 @@ const relayAddBtn = document.getElementById('relay-add-btn');
 const relaysCancel = document.getElementById('relays-cancel');
 const relaysError = document.getElementById('relays-error');
 
+// Blossom modal
+const blossomModal = document.getElementById('blossom-modal');
+const blossomEditList = document.getElementById('blossom-edit-list');
+const blossomAddInput = document.getElementById('blossom-add-input');
+const blossomAddBtn = document.getElementById('blossom-add-btn');
+const blossomCancel = document.getElementById('blossom-cancel');
+const blossomError = document.getElementById('blossom-error');
+const blossomServersList = document.getElementById('blossom-servers-list');
+const editBlossomBtn = document.getElementById('edit-blossom-btn');
+
 let currentRelays = [];
+let currentBlossomServers = [];
 
 let allPasskeys = [];
+let blossomServers = [];
 let currentTabUrl = null;
 let previousScreen = 'main';
 let currentSyncNsec = null;
@@ -168,6 +181,7 @@ function setupEventListeners() {
   importBtn.addEventListener('click', () => {
     chrome.tabs.create({ url: chrome.runtime.getURL('import/import.html') });
   });
+  fetchFaviconsBtn.addEventListener('click', handleFetchFavicons);
   changePasswordBtn.addEventListener('click', () => showScreen('change-password'));
   resetBtn.addEventListener('click', handleReset);
 
@@ -201,6 +215,24 @@ function setupEventListeners() {
       const relay = btn.dataset.relay;
       if (!currentRelays.includes(relay)) {
         addRelay(relay);
+      }
+    });
+  });
+
+  // Blossom modal
+  editBlossomBtn.addEventListener('click', openBlossomModal);
+  blossomCancel.addEventListener('click', () => blossomModal.classList.add('hidden'));
+  blossomAddBtn.addEventListener('click', handleAddBlossomServer);
+  blossomAddInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') handleAddBlossomServer();
+  });
+
+  // Blossom suggestions
+  document.querySelectorAll('.blossom-suggestion').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const server = btn.dataset.server;
+      if (!currentBlossomServers.includes(server)) {
+        addBlossomServer(server);
       }
     });
   });
@@ -388,8 +420,96 @@ async function loadPasskeys() {
   }
 
   allPasskeys = result.passkeys;
+  blossomServers = result.blossomServers || [];
   renderPasskeys(allPasskeys);
   renderCurrentSitePasskeys();
+
+  // Fetch missing favicons in background
+  fetchMissingFavicons();
+}
+
+// Fetch favicons for passkeys that don't have them
+async function fetchMissingFavicons() {
+  const passkeysWithoutFavicon = allPasskeys.filter(p => !p.faviconHash);
+
+  for (const passkey of passkeysWithoutFavicon) {
+    const result = await sendMessage('fetchPasskeyFavicon', { credentialId: passkey.credentialId });
+    if (result.success && result.hash) {
+      // Update local data and re-render
+      passkey.faviconHash = result.hash;
+      updatePasskeyAvatar(passkey.credentialId, result.hash);
+    }
+  }
+}
+
+// Update a single passkey avatar without full re-render
+function updatePasskeyAvatar(credentialId, faviconHash) {
+  const items = document.querySelectorAll(`.passkey-item[data-id="${credentialId}"]`);
+  items.forEach(item => {
+    const avatar = item.querySelector('.passkey-avatar');
+    if (avatar && blossomServers.length > 0) {
+      const url = `${blossomServers[0]}/${faviconHash}`;
+      avatar.innerHTML = `<img src="${url}" alt="" onerror="this.parentElement.textContent='${avatar.textContent[0] || '?'}'">`;
+      avatar.classList.add('has-favicon');
+    }
+  });
+}
+
+// Handle fetch favicons button
+async function handleFetchFavicons() {
+  if (allPasskeys.length === 0) {
+    await showAlert('📭', 'No Passkeys', 'You don\'t have any passkeys yet.');
+    return;
+  }
+
+  // Group by domain - only need one favicon per domain
+  const domainsWithoutFavicon = new Map();
+  for (const passkey of allPasskeys) {
+    if (!passkey.faviconHash && !domainsWithoutFavicon.has(passkey.rpId)) {
+      domainsWithoutFavicon.set(passkey.rpId, passkey);
+    }
+  }
+
+  if (domainsWithoutFavicon.size === 0) {
+    await showAlert('✅', 'All Done', 'All passkeys already have favicons.');
+    return;
+  }
+
+  // Update button to show progress
+  const titleEl = fetchFaviconsBtn.querySelector('.settings-item-title');
+  const descEl = fetchFaviconsBtn.querySelector('.settings-item-desc');
+  fetchFaviconsBtn.disabled = true;
+
+  let fetched = 0;
+  let errors = [];
+  const domains = Array.from(domainsWithoutFavicon.entries());
+  const total = domains.length;
+
+  for (let i = 0; i < domains.length; i++) {
+    const [domain, passkey] = domains[i];
+    titleEl.textContent = `Fetching... (${i + 1}/${total})`;
+    descEl.textContent = domain;
+
+    const result = await sendMessage('fetchPasskeyFavicon', { credentialId: passkey.credentialId });
+    if (result.success && result.hash) {
+      // Update all passkeys with this domain
+      allPasskeys.filter(p => p.rpId === domain).forEach(p => p.faviconHash = result.hash);
+      fetched++;
+    } else {
+      errors.push(`${domain}: ${result.error || 'Unknown error'}`);
+    }
+  }
+
+  // Restore button
+  fetchFaviconsBtn.disabled = false;
+  titleEl.textContent = 'Fetch favicons';
+  descEl.textContent = 'Download site icons via Blossom';
+
+  await showAlert(
+    fetched > 0 ? '✅' : '⚠️',
+    'Favicons Fetched',
+    `Successfully fetched ${fetched}/${total} favicons.${errors.length > 0 ? ` (${errors.length} failed)` : ''}`
+  );
 }
 
 // Render current site passkeys
@@ -463,9 +583,20 @@ function renderPasskeyItem(passkey, isCurrentSite) {
   const initial = (passkey.userDisplayName || passkey.userName || '?')[0].toUpperCase();
   const className = isCurrentSite ? 'passkey-item current-site' : 'passkey-item';
 
+  let avatarContent;
+  let avatarClass = 'passkey-avatar';
+
+  if (passkey.faviconHash && blossomServers.length > 0) {
+    const faviconUrl = `${blossomServers[0]}/${passkey.faviconHash}`;
+    avatarContent = `<img src="${faviconUrl}" alt="" onerror="this.parentElement.textContent='${initial}'">`;
+    avatarClass += ' has-favicon';
+  } else {
+    avatarContent = initial;
+  }
+
   return `
     <div class="${className}" data-id="${passkey.credentialId}">
-      <div class="passkey-avatar">${initial}</div>
+      <div class="${avatarClass}">${avatarContent}</div>
       <div class="passkey-info">
         <div class="passkey-site">${escapeHtml(passkey.rpName || passkey.rpId)}</div>
         <div class="passkey-user">${escapeHtml(passkey.userDisplayName || passkey.userName || 'Unknown')}</div>
@@ -703,6 +834,9 @@ async function loadSyncStatus() {
     // Display relays
     renderRelays(result.relays);
 
+    // Display Blossom servers
+    renderBlossomServers(result.blossomServers);
+
     // Display last sync
     if (result.lastSync > 0) {
       syncLastSync.textContent = `Last sync: ${formatDate(result.lastSync * 1000)}`;
@@ -720,6 +854,14 @@ async function loadSyncStatus() {
 function renderRelays(relays) {
   syncRelaysList.innerHTML = relays.map(relay =>
     `<div class="sync-relay-item">${escapeHtml(relay)}</div>`
+  ).join('');
+}
+
+// Render Blossom servers list
+function renderBlossomServers(servers) {
+  if (!servers || !blossomServersList) return;
+  blossomServersList.innerHTML = servers.map(server =>
+    `<div class="sync-relay-item">${escapeHtml(server)}</div>`
   ).join('');
 }
 
@@ -916,6 +1058,116 @@ async function saveRelays() {
   } else {
     relaysError.textContent = result.error || 'Failed to save relays';
     relaysError.classList.remove('hidden');
+  }
+}
+
+// ==================== BLOSSOM FUNCTIONS ====================
+
+// Open Blossom modal
+async function openBlossomModal() {
+  const result = await sendMessage('getSyncStatus');
+  if (result.success && result.blossomServers) {
+    currentBlossomServers = [...result.blossomServers];
+  } else {
+    currentBlossomServers = [];
+  }
+  blossomError.classList.add('hidden');
+  blossomAddInput.value = '';
+  renderBlossomEditList();
+  updateBlossomSuggestions();
+  blossomModal.classList.remove('hidden');
+}
+
+// Render Blossom edit list
+function renderBlossomEditList() {
+  if (currentBlossomServers.length === 0) {
+    blossomEditList.innerHTML = '<div class="relays-empty">No servers configured</div>';
+    return;
+  }
+
+  blossomEditList.innerHTML = currentBlossomServers.map(server => `
+    <div class="relay-edit-item" data-server="${escapeHtml(server)}">
+      <span class="relay-edit-url" title="${escapeHtml(server)}">${escapeHtml(server)}</span>
+      <button class="relay-delete-btn" data-server="${escapeHtml(server)}" title="Remove">×</button>
+    </div>
+  `).join('');
+
+  // Add delete handlers
+  blossomEditList.querySelectorAll('.relay-delete-btn').forEach(btn => {
+    btn.addEventListener('click', () => removeBlossomServer(btn.dataset.server));
+  });
+}
+
+// Update Blossom suggestion buttons state
+function updateBlossomSuggestions() {
+  document.querySelectorAll('.blossom-suggestion').forEach(btn => {
+    const server = btn.dataset.server;
+    if (currentBlossomServers.includes(server)) {
+      btn.classList.add('added');
+    } else {
+      btn.classList.remove('added');
+    }
+  });
+}
+
+// Handle add Blossom server from input
+function handleAddBlossomServer() {
+  const server = blossomAddInput.value.trim();
+
+  if (!server) {
+    return;
+  }
+
+  if (!server.startsWith('https://') && !server.startsWith('http://')) {
+    blossomError.textContent = 'URL must start with https:// or http://';
+    blossomError.classList.remove('hidden');
+    return;
+  }
+
+  if (currentBlossomServers.includes(server)) {
+    blossomError.textContent = 'This server is already added';
+    blossomError.classList.remove('hidden');
+    return;
+  }
+
+  blossomError.classList.add('hidden');
+  addBlossomServer(server);
+  blossomAddInput.value = '';
+  blossomAddInput.focus();
+}
+
+// Add a Blossom server
+async function addBlossomServer(server) {
+  currentBlossomServers.push(server);
+  renderBlossomEditList();
+  updateBlossomSuggestions();
+  await saveBlossomServers();
+}
+
+// Remove a Blossom server
+async function removeBlossomServer(server) {
+  if (currentBlossomServers.length <= 1) {
+    blossomError.textContent = 'You need at least one server';
+    blossomError.classList.remove('hidden');
+    return;
+  }
+
+  currentBlossomServers = currentBlossomServers.filter(s => s !== server);
+  renderBlossomEditList();
+  updateBlossomSuggestions();
+  blossomError.classList.add('hidden');
+  await saveBlossomServers();
+}
+
+// Save Blossom servers to storage
+async function saveBlossomServers() {
+  const result = await sendMessage('updateBlossomServers', { servers: currentBlossomServers });
+
+  if (result.success) {
+    loadSyncStatus();
+  } else {
+    blossomError.textContent = result.error || 'Failed to save servers';
+    blossomError.classList.remove('hidden');
   }
 }
 
